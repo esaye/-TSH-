@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tournament History — Gambia Scrabble Federation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    .page-hero { padding: 8rem 2rem 3rem; text-align: center; background: linear-gradient(160deg,#0d1117,#0e1e3a); }
+    .history-section { padding: 3rem 2rem; }
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:rgba(255,255,255,.1); }
+    .t-item { position: relative; margin-bottom: 2rem; }
+    .t-item::before { content:''; position:absolute; left:-2.4rem; top:.4rem; width:12px; height:12px;
+      border-radius:50%; background:var(--gold); border:2px solid var(--dark); }
+    .t-card {
+      background: rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+      border-radius:12px; padding:1.5rem; cursor:pointer;
+      transition: border-color .2s, transform .2s;
+    }
+    .t-card:hover { border-color:var(--gold); transform:translateX(4px); }
+    .t-card.active { border-color:var(--blue); }
+    .t-date { font-size:.75rem; color:var(--gold); letter-spacing:.1em; text-transform:uppercase; margin-bottom:.4rem; }
+    .t-name { font-family:var(--font-head); font-size:1.2rem; margin-bottom:.3rem; }
+    .t-meta { font-size:.85rem; color:rgba(255,255,255,.45); }
+    .t-detail { display:none; margin-top:1rem; overflow-x:auto; }
+    .t-detail.open { display:block; }
+    table { width:100%; border-collapse:collapse; font-size:.875rem; }
+    th { padding:.5rem .75rem; text-align:left; font-size:.7rem; letter-spacing:.1em;
+         text-transform:uppercase; color:rgba(255,255,255,.4); border-bottom:1px solid rgba(255,255,255,.1); }
+    td { padding:.6rem .75rem; border-bottom:1px solid rgba(255,255,255,.05); }
+    #loading { text-align:center; color:rgba(255,255,255,.4); padding:3rem; }
+  </style>
+</head>
+<body>
+<div class="flag-stripe"><div class="s1"></div><div class="s2"></div><div class="s3"></div><div class="s4"></div><div class="s5"></div></div>
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand"><img src="/assets/coat-of-arms.svg" width="36" height="36" alt="GSF"> GSF</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/members.html">Members</a>
+      <a href="/rankings.html">Rankings</a>
+      <a href="/history.html" style="color:var(--gold)">History</a>
+      <a href="/tournament" class="nav-cta">Live Portal →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-hero">
+  <p class="section-label">Archive</p>
+  <h1 class="section-title">Tournament History</h1>
+</div>
+
+<section class="history-section">
+  <div class="container">
+    <div id="loading">Loading tournaments…</div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-bottom" style="max-width:1200px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid rgba(255,255,255,.1);font-size:.8rem;color:rgba(255,255,255,.25)">
+    <span>© 2025 Gambia Scrabble Federation</span>
+  </div>
+  <div class="flag-stripe"><div class="s1"></div><div class="s2"></div><div class="s3"></div><div class="s4"></div><div class="s5"></div></div>
+</footer>
+
+<script>
+async function load() {
+  try {
+    const res = await fetch('/api/tournaments');
+    const data = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    if (!data.length) {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('loading').textContent = 'No tournaments recorded yet.';
+      return;
+    }
+    document.getElementById('timeline').innerHTML = data.map(t => `
+      <div class="t-item">
+        <div class="t-card" onclick="toggle(${t.id}, this)">
+          <div class="t-date">${t.date_start ? new Date(t.date_start).getFullYear() : 'TBD'}</div>
+          <div class="t-name">${t.name}</div>
+          <div class="t-meta">${t.location??'The Gambia'} · ${t.player_count} players · ${t.max_rounds??'?'} rounds</div>
+          <div class="t-detail" id="detail-${t.id}">
+            <p style="color:rgba(255,255,255,.4);font-size:.85rem;margin:.5rem 0">Click to load results…</p>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('loading').textContent = 'Could not load tournament history.';
+  }
+}
+
+async function toggle(id, card) {
+  const detail = document.getElementById(`detail-${id}`);
+  if (detail.classList.toggle('open')) {
+    card.classList.add('active');
+    try {
+      const res = await fetch(`/api/tournaments/${id}`);
+      const data = await res.json();
+      if (!data.standings?.length) {
+        detail.innerHTML = '<p style="color:rgba(255,255,255,.4);font-size:.85rem">No results recorded.</p>';
+        return;
+      }
+      detail.innerHTML = `<table>
+        <thead><tr><th>Rank</th><th>Player</th><th>W-L</th><th>Spread</th></tr></thead>
+        <tbody>${data.standings.map(s=>`
+          <tr>
+            <td style="color:var(--gold)">#${s.rank??'—'}</td>
+            <td>${s.name}</td>
+            <td style="color:rgba(255,255,255,.6)">${s.wins}-${s.losses}</td>
+            <td style="color:rgba(255,255,255,.6)">${s.spread>0?'+':''}${s.spread}</td>
+          </tr>`).join('')}
+        </tbody></table>`;
+    } catch(e) {
+      detail.innerHTML = '<p style="color:rgba(255,255,255,.4);font-size:.85rem">Could not load results.</p>';
+    }
+  } else {
+    card.classList.remove('active');
+  }
+}
+load();
+</script>
+</body>
+</html>

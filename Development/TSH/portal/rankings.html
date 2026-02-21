@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rankings — Gambia Scrabble Federation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    .page-hero { padding: 8rem 2rem 3rem; text-align: center; background: linear-gradient(160deg,#0d1117,#0e1e3a); }
+    .wespa-badge { display: inline-block; padding: 0.45rem 1.1rem; border-radius: 20px;
+      font-size: 0.85rem; font-weight: 600; background: var(--gold); color: #000;
+      margin-top: 1.5rem; }
+    .rankings-section { padding: 3rem 2rem; }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { border-bottom: 1px solid rgba(255,255,255,.15); }
+    th { padding: 0.75rem 1rem; font-size: 0.75rem; letter-spacing: .1em; text-transform: uppercase;
+         color: rgba(255,255,255,.45); text-align: left; }
+    th.right, td.right { text-align: right; }
+    td { padding: 0.9rem 1rem; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 0.9rem; }
+    tr:hover td { background: rgba(255,255,255,.03); }
+    .rank-num { font-family: var(--font-head); font-size: 1.1rem; color: rgba(255,255,255,.3); }
+    .rank-num.top { color: var(--gold); }
+    .rating-val { font-size: 1.1rem; font-weight: 700; color: var(--gold); }
+    #loading { text-align: center; color: rgba(255,255,255,.4); padding: 3rem; }
+  </style>
+</head>
+<body>
+<div class="flag-stripe"><div class="s1"></div><div class="s2"></div><div class="s3"></div><div class="s4"></div><div class="s5"></div></div>
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand"><img src="/assets/coat-of-arms.svg" width="36" height="36" alt="GSF"> GSF</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/members.html">Members</a>
+      <a href="/rankings.html" style="color:var(--gold)">Rankings</a>
+      <a href="/history.html">History</a>
+      <a href="/tournament" class="nav-cta">Live Portal →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-hero">
+  <p class="section-label">National</p>
+  <h1 class="section-title">Player Rankings</h1>
+  <div><span class="wespa-badge">WESPA</span></div>
+</div>
+
+<section class="rankings-section">
+  <div class="container">
+    <div id="loading">Loading rankings…</div>
+    <table id="table" style="display:none">
+      <thead><tr>
+        <th>Rank</th><th>Player</th><th>Region</th>
+        <th class="right">Rating</th><th class="right">Tournaments</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-bottom" style="max-width:1200px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid rgba(255,255,255,.1);font-size:.8rem;color:rgba(255,255,255,.25)">
+    <span>© 2025 Gambia Scrabble Federation</span>
+  </div>
+  <div class="flag-stripe"><div class="s1"></div><div class="s2"></div><div class="s3"></div><div class="s4"></div><div class="s5"></div></div>
+</footer>
+
+<script>
+async function loadRankings() {
+  const loading = document.getElementById('loading');
+  try {
+    const res = await fetch('/api/rankings?system=wespa');
+    const data = await res.json();
+    loading.style.display = 'none';
+    if (!data.length) {
+      loading.style.display = 'block';
+      loading.textContent = 'No rankings available yet.';
+      return;
+    }
+    document.getElementById('tbody').innerHTML = data.map((r,i) => `
+      <tr>
+        <td><span class="rank-num ${i<3?'top':''}">#${i+1}</span></td>
+        <td><a href="/member.html?id=${r.id}" style="color:inherit">${r.name}</a></td>
+        <td style="color:rgba(255,255,255,.5)">${r.region??'The Gambia'}</td>
+        <td class="right"><span class="rating-val">${r.rating}</span></td>
+        <td class="right" style="color:rgba(255,255,255,.5)">${r.tournaments_played}</td>
+      </tr>`).join('');
+    document.getElementById('table').style.display = 'table';
+  } catch(e) {
+    loading.textContent = 'Could not load rankings.';
+  }
+}
+loadRankings();
+</script>
+</body>
+</html>

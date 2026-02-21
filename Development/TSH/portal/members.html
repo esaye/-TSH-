@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Members — Gambia Scrabble Federation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <style>
+    .page-hero { padding: 8rem 2rem 3rem; text-align: center; background: linear-gradient(160deg,#0d1117,#0e1e3a); }
+    .search-bar { max-width: 480px; margin: 2rem auto 0; position: relative; }
+    .search-bar input {
+      width: 100%; padding: 0.85rem 1.25rem; border-radius: 8px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+      color: white; font-size: 1rem; outline: none; box-sizing: border-box;
+    }
+    .search-bar input::placeholder { color: rgba(255,255,255,0.35); }
+    .members-section { padding: 3rem 2rem; background: var(--dark); }
+    .members-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 1.25rem; }
+    .member-card {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px; padding: 1.5rem; text-align: center;
+      cursor: pointer; transition: border-color .2s, transform .2s;
+    }
+    .member-card:hover { border-color: var(--gold); transform: translateY(-3px); }
+    .member-avatar {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--green));
+      margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-head); font-size: 1.4rem; font-weight: 700; color: white;
+    }
+    .member-name { font-family: var(--font-head); font-size: 1rem; margin-bottom: 0.35rem; }
+    .member-rating { font-size: 1.4rem; font-weight: 700; color: var(--gold); }
+    .member-region { font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-top: 0.25rem; }
+    .member-status { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem;
+      border-radius: 10px; margin-top: 0.5rem; }
+    .status-active { background: rgba(58,119,40,.2); color: #6ee7a0; }
+    .status-junior { background: rgba(58,117,196,.2); color: #93c5fd; }
+    #loading, #empty { text-align: center; color: rgba(255,255,255,.4); padding: 3rem; }
+  </style>
+</head>
+<body>
+<div class="flag-stripe"><div class="s1"></div><div class="s2"></div><div class="s3"></div><div class="s4"></div><div class="s5"></div></div>
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand"><img src="/assets/coat-of-arms.svg" width="36" height="36" alt="GSF"> GSF</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/members.html" style="color:var(--gold)">Members</a>
+      <a href="/rankings.html">Rankings</a>
+      <a href="/history.html">History</a>
+      <a href="/tournament" class="nav-cta">Live Portal →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="page-hero">
+  <p class="section-label">Federation</p>
+  <h1 class="section-title">Member Directory</h1>
+  <div class="search-bar">
+    <input type="search" id="search" placeholder="Search by name or region…" oninput="filterMembers()">
+  </div>
+</div>
+
+<section class="members-section">
+  <div class="container">
+    <div id="loading">Loading members…</div>
+    <div id="empty" style="display:none">No members found.</div>
+    <div class="members-grid" id="grid"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-bottom" style="max-width:1200px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid rgba(255,255,255,.1);font-size:.8rem;color:rgba(255,255,255,.25)">
+    <span>© 2025 Gambia Scrabble Federation</span>
+  </div>
+  <div class="flag-stripe"><div class="s1"></div><div class="s2"></div><div class="s3"></div><div class="s4"></div><div class="s5"></div></div>
+</footer>
+
+<script>
+let all = [];
+async function load() {
+  try {
+    const res = await fetch('/api/members');
+    all = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    render(all);
+  } catch(e) {
+    document.getElementById('loading').textContent = 'Could not load members.';
+  }
+}
+function initials(name) {
+  return name.split(',').map(p=>p.trim()[0]).join('').toUpperCase().slice(0,2);
+}
+function render(members) {
+  const grid = document.getElementById('grid');
+  document.getElementById('empty').style.display = members.length ? 'none' : 'block';
+  grid.innerHTML = members.map(m => `
+    <div class="member-card" onclick="location.href='/member.html?id=${m.id}'">
+      <div class="member-avatar">${initials(m.name)}</div>
+      <div class="member-name">${m.name}</div>
+      <div class="member-rating">${m.rating ?? '—'}</div>
+      <div class="member-region">${m.region ?? 'The Gambia'}</div>
+      <span class="member-status status-${m.status}">${m.status}</span>
+    </div>`).join('');
+}
+function filterMembers() {
+  const q = document.getElementById('search').value.toLowerCase();
+  render(all.filter(m =>
+    m.name.toLowerCase().includes(q) ||
+    (m.region||'').toLowerCase().includes(q)
+  ));
+}
+load();
+</script>
+</body>
+</html>
