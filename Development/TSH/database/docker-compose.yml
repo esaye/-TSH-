@@ -1,0 +1,18 @@
+# Local development mirror of cloud PostgreSQL.
+# To use: docker compose up -d
+# To migrate to cloud: change DATABASE_URL in .env — no other changes needed.
+version: '3.9'
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gsf_user
+      POSTGRES_PASSWORD: gsf_secure_2025
+      POSTGRES_DB: gsf_db
+    ports:
+      - "5433:5432"   # 5433 to avoid conflict with local PostgreSQL
+    volumes:
+      - gsf_pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+volumes:
+  gsf_pgdata:
