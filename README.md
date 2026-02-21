@@ -1,0 +1,2 @@
+# -TSH-
+Scrabble Tournament software
