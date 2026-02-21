@@ -221,8 +221,7 @@ PGPASSWORD=gsf_secure_2025 psql -U gsf_user -h localhost -d gsf_db \
 |---|---|---|
 | GET | `/api/members` | All active members + current rating |
 | GET | `/api/members/:id` | Full profile + rating history + career tournaments |
-| GET | `/api/rankings` | National rankings sorted by rating (default: WESPA) |
-| GET | `/api/rankings?system=nsa` | Rankings filtered by rating system |
+| GET | `/api/rankings` | National WESPA rankings sorted by rating |
 | GET | `/api/tournaments` | All tournaments with player counts |
 | GET | `/api/tournaments/:id` | Tournament detail + final standings |
 | GET | `/api/tournaments/:id/results` | Round-by-round pairings and scores |
