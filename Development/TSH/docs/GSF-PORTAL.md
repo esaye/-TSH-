@@ -12,6 +12,8 @@ It consists of:
 - A Flask JSON API serving all tournament and player data
 - The TSH tournament management GUI proxied at `/tournament`
 - A Cloudflare Tunnel connecting the domain to the local machine
+- A Cockpit server management panel at `https://admin.gambiascrabblefederation.net` (protected by Cloudflare Zero Trust Access)
+- A `guix-publish` substitute server running on `:8181`
 
 ---
 
@@ -22,23 +24,29 @@ Browser
   │
   └─► Cloudflare (DNS proxy)
           │
-          └─► Cloudflare Tunnel (jellyfin / 3205f896-...)
-                  │
-                  └─► Apache2 :80  (this machine)
-                          │
-                          ├── /              → /var/www/gsf/index.html
-                          ├── /assets/       → /var/www/gsf/assets/
-                          ├── /members.html  → /var/www/gsf/members.html
-                          ├── /rankings.html → /var/www/gsf/rankings.html
-                          ├── /history.html  → /var/www/gsf/history.html
-                          ├── /api/*         → Flask API :5000
-                          └── /tournament    → TSH HTTP server :7779
+          ├─► tournaments.gambiascrabblefederation.net
+          │       └─► Cloudflare Tunnel → Apache2 :80  (this machine)
+          │                   │
+          │                   ├── /              → /var/www/gsf/index.html
+          │                   ├── /assets/       → /var/www/gsf/assets/
+          │                   ├── /members.html  → /var/www/gsf/members.html
+          │                   ├── /rankings.html → /var/www/gsf/rankings.html
+          │                   ├── /history.html  → /var/www/gsf/history.html
+          │                   ├── /api/*         → Flask API :5000
+          │                   └── /tournament    → TSH HTTP server :7779
+          │
+          └─► admin.gambiascrabblefederation.net
+                  └─► Cloudflare Zero Trust Access (email OTP gate)
+                          └─► Cloudflare Tunnel → Cockpit :9090  (this machine)
+                                  └─► terminal, services, file manager, metrics
 
 Flask API :5000
   │
   └─► PostgreSQL :5432  (gsf_db)
           │
           └─► Populated by import_tsh.py after each tournament
+
+guix-publish :8181  (local only — serves Guix store substitutes)
 ```
 
 ---
@@ -112,6 +120,10 @@ ingress:
       noTLSVerify: true
   - hostname: tournaments.gambiascrabblefederation.net
     service: http://localhost:80
+  - hostname: admin.gambiascrabblefederation.net
+    service: http://localhost:9090
+    originRequest:
+      noTLSVerify: true
   - service: http_status:404
 ```
 
@@ -121,6 +133,86 @@ sudo systemctl start cloudflared
 sudo systemctl stop cloudflared
 sudo systemctl restart cloudflared
 sudo systemctl status cloudflared
+```
+
+---
+
+## Admin Panel (Cockpit)
+
+**URL:** `https://admin.gambiascrabblefederation.net`
+**Service:** Cockpit — web-based server management UI
+**Runs on:** `http://localhost:9090`
+**Auth:** Cloudflare Zero Trust Access (email OTP) → then Cockpit PAM login
+
+### Access flow
+
+```
+Browser → Cloudflare Zero Trust (email OTP) → Tunnel → Cockpit :9090
+```
+
+The Zero Trust Access policy requires a verified email before the request
+ever reaches the machine. Cockpit then requires the system user password.
+
+### Cloudflare Zero Trust policy
+
+| Setting | Value |
+|---|---|
+| Application name | `GSF Admin` |
+| Domain | `admin.gambiascrabblefederation.net` |
+| Policy | Allow — Emails — (your email address) |
+| Auth method | One-time PIN |
+| Session duration | 24 hours |
+
+Managed at: `https://one.dash.cloudflare.com/` → Access → Applications
+
+### Cockpit capabilities
+
+- **Terminal** — full shell on the server
+- **Services** — start/stop/view systemd units (gsf-api, cloudflared, guix-publish, etc.)
+- **Logs** — journald log viewer
+- **Storage** — disk usage and mounts
+- **Networking** — interface and firewall overview
+
+### Manage Cockpit service
+```bash
+sudo systemctl status cockpit
+sudo systemctl restart cockpit
+```
+
+---
+
+## Guix Publish
+
+**Service:** `guix-publish` (systemd)
+**Runs on:** `http://localhost:8181` (local only — not exposed via tunnel)
+**Purpose:** Serves the local `/gnu/store` as a substitute server for other Guix machines
+
+### Signing key
+
+The signing key is required for `guix publish` to start. It was generated with:
+```bash
+sudo guix archive --generate-key
+```
+Keys are stored at:
+- `/etc/guix/signing-key.pub` — public key
+- `/etc/guix/signing-key.sec` — secret key
+
+### Manage the service
+```bash
+sudo systemctl status guix-publish
+sudo systemctl restart guix-publish
+journalctl -u guix-publish -n 30     # view logs
+```
+
+### Verify it is serving
+```bash
+curl -s http://localhost:8181/nix-cache-info
+```
+Expected output:
+```
+StoreDir: /gnu/store
+WantMassQuery: 1
+Priority: 100
 ```
 
 ---
