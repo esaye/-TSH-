@@ -1,0 +1,1214 @@
+;;; init.el --- AI Development Environment for Emacs
+;;; Commentary:
+;;; Comprehensive Emacs configuration for AI/ML development
+;;; Optimized for Python, Jupyter, and AI frameworks
+
+;;; Code:
+
+;; ============================================================================
+;; PACKAGE MANAGEMENT (must come first)
+;; ============================================================================
+
+(require 'package)
+(setq package-enable-at-startup nil)
+
+;; Add package repositories
+(setq package-archives
+      '(("gnu" . "https://elpa.gnu.org/packages/")
+        ("melpa" . "https://melpa.org/packages/")
+        ("melpa-stable" . "https://stable.melpa.org/packages/")))
+
+;; Pre-load all-the-icons before package-initialize so that
+;; major-mode-icons autoloads (which eagerly call all-the-icons functions)
+;; don't trigger a void-function error during init.
+(let ((ati-dir (car (file-expand-wildcards
+                     (expand-file-name "elpa/all-the-icons-*" user-emacs-directory)))))
+  (when ati-dir
+    (add-to-list 'load-path ati-dir)
+    (require 'all-the-icons nil t)))
+
+(package-initialize)
+
+;;; Load Org and literate configuration files (after package-initialize)
+;;; This ensures MELPA Org version is available before requiring it
+(setq dotfiles-dir (file-name-directory (or (buffer-file-name) load-file-name)))
+
+(let* ((org-dir (expand-file-name
+                    "lisp" (expand-file-name
+                            "org" (expand-file-name
+                                   "src" dotfiles-dir))))
+          (org-contrib-dir (expand-file-name
+                            "lisp" (expand-file-name
+                                    "contrib" (expand-file-name
+                                               ".." org-dir))))
+          (load-path (append (list org-dir org-contrib-dir)
+                             (or load-path nil))))
+  ;; load up Org and Org-babel
+  (require 'org)
+  (require 'ob-tangle))
+
+;; load up all literate org-mode files in this directory
+;; Skip init.org because tangling it regenerates init.el and causes a recursive load.
+(mapc #'org-babel-load-file
+      (remove (expand-file-name "init.org" dotfiles-dir)
+              (directory-files dotfiles-dir t "\\.org$")))
+
+(setq inferior-lisp-program "ros -Q run")
+
+;; Ensure package contents are refreshed if not already
+(unless package-archive-contents
+  (package-refresh-contents))
+
+;; Bootstrap use-package
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
+
+(require 'use-package)
+(setq use-package-always-ensure t)
+
+;; Enable :quelpa keyword in use-package (for GitHub-hosted packages)
+(require 'quelpa-use-package)
+(quelpa-use-package-activate-advice)
+
+;; ============================================================================
+;; LOAD PATH SETUP (after package bootstrap)
+;; ============================================================================
+
+;; Add lisp subdirectory to load-path for local configuration files
+(add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
+(add-to-list 'load-path "~/.emacs.d/lisp/emacs-claude-code")
+(require 'emacs-claude-code)
+
+;; TMR (manual package — :ensure nil since it's not from MELPA)
+(add-to-list 'load-path "~/.emacs.d/manual-packages/tmr")
+(use-package tmr
+  :ensure nil
+  :config
+  (define-key global-map (kbd "C-c T") #'tmr-prefix-map)
+  (setq tmr-sound-file "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"
+        tmr-notification-urgency 'normal
+        tmr-description-list 'tmr-description-history))
+
+;; Sync shell PATH (including nvm, cargo, etc.) into Emacs exec-path.
+;; Must run before any :ensure-system-package or executable-find calls.
+;; Without this, graphical Emacs launches miss nvm paths and :ensure-system-package
+;; incorrectly treats already-installed binaries as missing.
+(use-package exec-path-from-shell
+  :config
+  (when (memq window-system '(mac ns x pgtk))
+    (exec-path-from-shell-initialize))
+  (when (daemonp)
+    (exec-path-from-shell-initialize)))
+
+;; ============================================================================
+;; EAF (Emacs Application Framework)
+;; ============================================================================
+
+(condition-case err
+    (progn
+      (add-to-list 'load-path "~/.emacs.d/site-lisp/emacs-application-framework/")
+      ;; Ensure MELPA Org is loaded (not just built-in) to avoid version mismatch
+      (require 'org)
+      (setq eaf-python-command "/usr/bin/python3")  ; Use system Python, not venv
+
+      ;; Persistent storage path — pins the Qt WebEngine cookie database so
+      ;; ForcePersistentCookies works reliably across restarts.
+      (setq eaf-config-location (expand-file-name "~/.emacs.d/browser/"))
+
+      (require 'eaf)
+
+      ;; Disable geolocation — GeoClue2 D-Bus service denies access for this UID.
+      ;; Appends ",Geolocation" to the existing --disable-features= value so we
+      ;; don't produce a duplicate flag (last one wins in Chromium, which would
+      ;; silently drop IsolateOrigins and site-per-process).
+      (defun my/eaf-disable-geolocation (orig-fun)
+        "Append ,Geolocation to the existing --disable-features flag in QTWEBENGINE_CHROMIUM_FLAGS."
+        (mapcar (lambda (var)
+                  (if (string-match "\\(QTWEBENGINE_CHROMIUM_FLAGS=.*--disable-features=[^ ]*\\)" var)
+                      (concat var ",Geolocation")
+                    var))
+                (funcall orig-fun)))
+      (advice-add 'eaf--build-process-environment :around #'my/eaf-disable-geolocation)
+
+      ;; Core apps
+      (require 'eaf-browser)
+      (require 'eaf-terminal)
+      (require 'eaf-pdf-viewer)
+      (require 'eaf-file-manager)
+      (require 'eaf-file-browser)
+      (require 'eaf-file-sender)
+      (require 'eaf-image-viewer)
+      (require 'eaf-map)
+      (require 'eaf-mindmap)
+      (require 'eaf-mind-elixir)
+      (require 'eaf-markmap)
+      (require 'eaf-org-previewer)
+      (require 'eaf-markdown-previewer)
+      (require 'eaf-jupyter)
+      (require 'eaf-rss-reader)
+      (require 'eaf-music-player)
+      (require 'eaf-system-monitor)
+      (require 'eaf-video-player)
+      (require 'eaf-video-editor)
+      (require 'eaf-js-video-player)
+      (require 'eaf-camera)
+      (require 'eaf-git)
+      (require 'eaf-pyqterminal)
+      (require 'eaf-airshare)
+
+      ;; Extras
+      (require 'eaf-2048)
+      (require 'eaf-vue-demo)
+      (require 'eaf-vue-tailwindcss)
+      (require 'eaf-demo)
+
+      ;; Load EAF-specific settings (browser auth, Brave integration, keybindings)
+ ;; Enable ad-blocking and session continuity
+;;  (eaf-browser-enable-adblocker t)
+  ;;(eaf-browser-continue-where-left-off t)
+  ;; Set EAF as the default browser for Emacs
+  ;;(browse-url-browser-function 'eaf-open-browser)
+  ;;:config
+  ;; Create an alias for opening the browser
+ ;; (defalias 'browse-web #'eaf-open-browser)
+  ;; Optional: Unbind specific keys or customize bindings
+  ;; (eaf-bind-key nil "M-q" eaf-browser-keybinding)
+
+
+
+      (require 'eaf-config)
+
+      (message "✅ EAF loaded successfully"))
+  (error (message "❌ EAF failed to load: %s" err)))
+
+;; ============================================================================
+;; XWIDGETS (WebKitGTK embedded browser)
+;; Requires Emacs compiled with --with-xwidgets (snap build has this)
+;; ============================================================================
+
+(when (featurep 'xwidget-internal)
+  ;; Use xwidget-webkit as the default browser inside Emacs
+  (setq browse-url-browser-function #'xwidget-webkit-browse-url)
+
+  ;; Kill the xwidget buffer when its window is closed
+  (setq xwidget-webkit-buffer-name-format "*xwidget: %T*")
+
+  (with-eval-after-load 'xwidget
+    ;; j/k scroll like a browser
+    (define-key xwidget-webkit-mode-map (kbd "j") #'xwidget-webkit-scroll-up-line)
+    (define-key xwidget-webkit-mode-map (kbd "k") #'xwidget-webkit-scroll-down-line)
+    (define-key xwidget-webkit-mode-map (kbd "d") #'xwidget-webkit-scroll-up)
+    (define-key xwidget-webkit-mode-map (kbd "u") #'xwidget-webkit-scroll-down)
+    (define-key xwidget-webkit-mode-map (kbd "H") #'xwidget-webkit-back)
+    (define-key xwidget-webkit-mode-map (kbd "L") #'xwidget-webkit-forward)
+    (define-key xwidget-webkit-mode-map (kbd "r") #'xwidget-webkit-reload)
+    (define-key xwidget-webkit-mode-map (kbd "o") #'xwidget-webkit-browse-url)
+    (define-key xwidget-webkit-mode-map (kbd "y") #'xwidget-webkit-copy-selection-as-kill))
+
+  (global-set-key (kbd "C-c x") #'xwidget-webkit-browse-url)
+  (message "✅ xwidgets loaded"))
+
+;; ============================================================================
+;; BASIC CONFIGURATION
+;; ============================================================================
+
+;; UI Configuration
+(setq inhibit-startup-message t)
+(tool-bar-mode -1)
+(menu-bar-mode -1)
+(scroll-bar-mode -1)
+(global-display-line-numbers-mode 1)
+(column-number-mode 1)
+(show-paren-mode 1)
+(electric-pair-mode 1)
+
+;; Editor settings
+(setq-default indent-tabs-mode nil
+              tab-width 4
+              python-indent-offset 4
+              fill-column 88)
+
+;; Better defaults
+(setq make-backup-files nil
+      auto-save-default nil
+      ring-bell-function 'ignore
+      gc-cons-threshold 100000000
+      read-process-output-max (* 1024 1024))
+
+;; ============================================================================
+;; THEMES AND UI
+;; ============================================================================
+
+(use-package doom-themes
+  :config
+  (setq doom-themes-enable-bold t
+        doom-themes-enable-italic t)
+  (load-theme 'doom-one t)
+  (doom-themes-visual-bell-config)
+  (doom-themes-org-config))
+
+(use-package doom-modeline
+  :hook (after-init . doom-modeline-mode)
+  :config
+  (setq doom-modeline-height 25
+        doom-modeline-icon t
+        doom-modeline-major-mode-icon t
+        doom-modeline-minor-modes nil))
+
+(use-package all-the-icons)
+
+;; Dashboard
+(use-package dashboard
+  :after all-the-icons
+  :config
+  (dashboard-setup-startup-hook)
+  (setq dashboard-startup-banner 'official
+        dashboard-center-content t
+        dashboard-banner-logo-title "🚀 Welcome to Emacs - AI Development Environment! 🚀"
+        dashboard-show-shortcuts nil
+        dashboard-items '((recents  . 10)
+                         (bookmarks . 5)
+                         (projects . 10)
+                         (agenda . 5)
+                         (registers . 5))
+        dashboard-item-names '(("Recent Files:" . "📁 Recent Files:")
+                              ("Projects:" . "🗂️  Projects:")
+                              ("Bookmarks:" . "🔖 Bookmarks:")
+                              ("Agenda for today:" . "📅 Today's Agenda:")
+                              ("Registers:" . "📋 Registers:"))
+        dashboard-set-heading-icons t
+        dashboard-set-file-icons t
+        dashboard-set-navigator t)
+  ;; Set up navigator buttons only if all-the-icons is available
+  (when (and (display-graphic-p) (require 'all-the-icons nil t))
+    (setq dashboard-navigator-buttons
+          `(((,(all-the-icons-octicon "mark-github" :height 1.1 :v-adjust 0.0)
+             "GitHub"
+             "Browse GitHub"
+             (lambda (&rest _) (browse-url "https://github.com")))
+            (,(all-the-icons-octicon "book" :height 1.1 :v-adjust 0.0)
+             "Documentation" 
+             "Read the manual"
+             (lambda (&rest _) (info-emacs-manual)))
+            (,(all-the-icons-material "settings" :height 1.1 :v-adjust 0.0)
+             "Settings"
+             "Open configuration"
+             (lambda (&rest _) (find-file user-init-file)))))))
+  :custom
+  (initial-buffer-choice (lambda () (get-buffer-create "*dashboard*"))))
+
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
+
+;; ============================================================================
+;; COMPLETION AND NAVIGATION
+;; ============================================================================
+
+(use-package ivy
+  :diminish
+  :bind (("C-s" . swiper)
+         :map ivy-minibuffer-map
+         ("TAB" . ivy-alt-done)
+         ("C-l" . ivy-alt-done)
+         ("C-j" . ivy-next-line)
+         ("C-k" . ivy-previous-line)
+         :map ivy-switch-buffer-map
+         ("C-k" . ivy-previous-line)
+         ("C-l" . ivy-done)
+         ("C-d" . ivy-switch-buffer-kill)
+         ("C-S-d" . ivy-switch-buffer-other-window)
+         :map ivy-reverse-i-search-map
+         ("C-k" . ivy-previous-line)
+         ("C-d" . ivy-reverse-i-search-kill))
+  :config
+  (setq ivy-use-virtual-buffers t
+        ivy-count-format "%d/%d ")
+  (ivy-mode 1))
+
+(use-package counsel
+  :bind (("M-x" . counsel-M-x)
+         ("C-x b" . ivy-switch-buffer)
+         ("C-x C-b" . counsel-ibuffer)
+         ("C-x C-f" . counsel-find-file)
+         :map minibuffer-local-map
+         ("C-r" . 'counsel-minibuffer-history))
+  :config
+  (setq ivy-initial-inputs-alist nil))
+
+(use-package which-key
+  :init (which-key-mode)
+  :diminish which-key-mode
+  :config
+  (setq which-key-idle-delay 1))
+
+;; Smex: M-x sorting by frequency/recency (used by counsel-M-x when present)
+(use-package smex
+  :after counsel
+  :config
+  (setq smex-save-file (expand-file-name "~/.emacs.d/.smex-items"))
+  (smex-initialize))
+
+(use-package company
+  :init (global-company-mode)
+  :bind (:map company-active-map
+         ("<tab>" . company-complete-selection)
+         ("C-n" . company-select-next)
+         ("C-p" . company-select-previous))
+        (:map company-mode-map
+         ("<tab>" . company-indent-or-complete-common))
+  :custom
+  (company-minimum-prefix-length 1)
+  (company-idle-delay 0.1)
+  (company-tooltip-align-annotations t)
+  (company-selection-wrap-around t)
+  :config
+  ;; Enable company in scratch buffer and other lisp modes
+  (add-hook 'lisp-interaction-mode-hook 'company-mode)
+  (add-hook 'emacs-lisp-mode-hook 'company-mode)
+  
+  ;; Use company-capf for Emacs Lisp completion (replaces deprecated company-elisp)
+  ;; company-capf uses completion-at-point-functions which works better with elisp-mode
+  
+  ;; Configure company for scratch buffer specifically
+  (defun setup-scratch-completion ()
+    "Set up enhanced completion for scratch buffer."
+    (when (string= (buffer-name) "*scratch*")
+      (company-mode 1)
+      (setq-local company-backends 
+                  '((company-capf company-dabbrev-code company-keywords)
+                    company-dabbrev))))
+  
+  (add-hook 'lisp-interaction-mode-hook 'setup-scratch-completion))
+
+;; ============================================================================
+;; VERSION CONTROL
+;; ============================================================================
+
+(use-package magit
+  :bind ("C-x g" . magit-status)
+  :config
+  (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+
+(use-package git-gutter
+  :hook (prog-mode . git-gutter-mode)
+  :config
+  (setq git-gutter:update-interval 0.02))
+
+;; ============================================================================
+;; PROJECT MANAGEMENT
+;; ============================================================================
+
+(use-package projectile
+  :diminish projectile-mode
+  :config (projectile-mode)
+  :custom ((projectile-completion-system 'ivy))
+  :bind-keymap
+  ("C-c p" . projectile-command-map)
+  :init
+  (when (file-directory-p "~/Development")
+    (setq projectile-project-search-path '("~/Development")))
+  (setq projectile-switch-project-action #'projectile-dired))
+
+(use-package counsel-projectile
+  :config (counsel-projectile-mode))
+
+;; ============================================================================
+;; PROGRAMMING LANGUAGES
+;; ============================================================================
+
+;; LSP Configuration
+(use-package lsp-mode
+  :init
+  (setq lsp-keymap-prefix "C-c l")
+  :hook (;; replace XXX-mode with concrete major-mode(e. g. python-mode)
+         (python-mode . lsp)
+         (lsp-mode . lsp-enable-which-key-integration))
+  :commands lsp
+  :config
+  (setq lsp-prefer-flymake nil
+        lsp-enable-snippet t
+        lsp-enable-symbol-highlighting t
+        lsp-enable-links t
+        lsp-signature-auto-activate t
+        lsp-signature-render-documentation t))
+
+(use-package lsp-ui
+  :hook (lsp-mode . lsp-ui-mode)
+  :custom
+  (lsp-ui-doc-position 'bottom))
+
+(use-package lsp-ivy :commands lsp-ivy-workspace-symbol)
+
+;; Python Configuration
+(use-package python-mode
+  :ensure nil
+  :hook (python-mode . lsp-deferred)
+  :custom
+  (python-shell-interpreter "python3")
+  (python-shell-interpreter-args "-i"))
+
+(use-package pyvenv
+  :config
+  (pyvenv-mode 1)
+  ;; Activate AI environment by default
+  (pyvenv-activate "/home/ebrimasaye/Development/AI/ai-venv"))
+
+(use-package blacken
+  :hook (python-mode . blacken-mode)
+  :config
+  (setq blacken-line-length 88))
+
+(use-package py-isort
+  :hook (python-mode . py-isort-before-save))
+
+
+(use-package julia-mode
+  :ensure t)
+
+(use-package lsp-pyright
+  :ensure t
+  :custom (lsp-pyright-langserver-command "pyright") ;; or basedpyright
+  :hook (python-mode . (lambda ()
+                          (require 'lsp-pyright)
+                          (lsp))))  ; or lsp-deferred
+
+;; ============================================================================
+;; AI/ML SPECIFIC PACKAGES
+;; ============================================================================
+
+;; Jupyter integration
+(condition-case err
+    (use-package jupyter
+      :config
+      (setq jupyter-eval-use-overlays t))
+  (error (message "⚠️ Jupyter package failed to load: %s" err)))
+
+(use-package ein
+  :config
+  (setq ein:output-area-inlined-images t))
+
+
+
+;; Basic org configuration (babel languages configured in org-config.el)
+(use-package org
+  :ensure nil)
+
+;; ============================================================================
+;; AI CODING ASSISTANTS
+;; ============================================================================
+
+;; GitHub Copilot Configuration
+;; Note: Requires Node.js 20.x or later for the language server
+(when (file-directory-p "~/.emacs.d/copilot")
+  (condition-case err
+      (progn
+        (add-to-list 'load-path "~/.emacs.d/copilot")
+        (require 'copilot)
+        
+        ;; Check Node.js version and provide helpful message
+        (let ((node-version (shell-command-to-string "node --version 2>/dev/null")))
+          (if (string-match "v\\([0-9]+\\)" node-version)
+              (let ((version-number (string-to-number (match-string 1 node-version))))
+                (if (>= version-number 20)
+                    (progn
+                      ;; Enhanced language server configuration
+                      (setq copilot-node-executable "node")
+                      
+                      ;; Set the path to the language server executable
+                      (setq copilot-language-server-executable 
+                            (expand-file-name "~/.local/node_modules/@github/copilot-language-server/native/linux-x64/copilot-language-server"))
+                      
+                      ;; Advanced language server settings
+                      (setq copilot-lsp-settings
+                            '(:github-enterprise (:uri "")
+                              :completion (:maxCompletions 5
+                                         :debounceMs 75
+                                         :enableAutoTrigger t
+                                         :enablePartialAccept t
+                                         :contextLines 50)
+                              :ai (:temperature 0.3
+                                 :maxTokens 2048
+                                 :enableMultilineCompletions t
+                                 :streamingEnabled t
+                                 :cacheEnabled t)
+                              :performance (:maxMemoryMB 512
+                                          :enableIncrementalParsing t
+                                          :enableBackgroundIndexing t)
+                              :security (:enableTelemetry nil
+                                       :enableCrashReporting nil)))
+                      
+                      ;; Enhanced Copilot settings for better performance
+                      (setq copilot-idle-delay 0.1)  ; Faster response time
+                      (setq copilot-max-char 1000000)  ; Larger context window
+                      (setq copilot-completion-auto-accept nil)  ; Manual acceptance
+                      
+                      ;; Enable debug logging if needed
+                      (setq copilot-log-max 1000)  ; Keep more logs for debugging
+                      
+                      ;; FIXED: Only use supported arguments (--stdio only)
+                      (setq copilot-server-args '("--stdio"))
+                      
+                      ;; Enable copilot in programming modes (start disabled, enable manually)
+                      ;; (add-hook 'prog-mode-hook 'copilot-mode)
+                      
+                      ;; Set up keybindings
+                      (define-key copilot-completion-map (kbd "<tab>") 'copilot-accept-completion)
+                      (define-key copilot-completion-map (kbd "TAB") 'copilot-accept-completion)
+                      (define-key copilot-completion-map (kbd "C-TAB") 'copilot-accept-completion-by-word)
+                      (define-key copilot-completion-map (kbd "C-<tab>") 'copilot-accept-completion-by-word)
+                      
+                      ;; Manual activation keybinding
+                      (global-set-key (kbd "C-c C-p") 'copilot-mode)
+                      
+                      ;; Optional: Set up additional keybindings
+                      (define-key copilot-mode-map (kbd "M-C-<return>") 'copilot-accept-completion)
+                      (define-key copilot-mode-map (kbd "M-C-<right>") 'copilot-accept-completion-by-word)
+                      (define-key copilot-mode-map (kbd "M-C-<down>") 'copilot-next-completion)
+                      (define-key copilot-mode-map (kbd "M-C-<up>") 'copilot-previous-completion)
+                      
+                      (message "✅ GitHub Copilot available - Use C-c C-p to enable in buffer"))
+                  (message "⚠️ Copilot requires Node.js 20+. Current: %s. Use 'C-c C-p' to try anyway." node-version)))
+            (message "⚠️ Node.js not found. Install Node.js 20+ for Copilot support.")))
+        
+        ;; Always set up the manual toggle function
+        (defun copilot-toggle ()
+          "Toggle Copilot mode in the current buffer."
+          (interactive)
+          (if copilot-mode
+              (progn
+                (copilot-mode -1)
+                (message "Copilot disabled"))
+            (progn
+              (copilot-mode 1)
+              (message "Copilot enabled"))))
+        
+        (global-set-key (kbd "C-c C-p") 'copilot-toggle))
+    (error (message "❌ Copilot not available: %s" err))))
+
+;; ChatGPT integration
+(use-package chatgpt-shell
+  :config
+  (setq chatgpt-shell-openai-key
+        (lambda ()
+          (auth-source-pass-get 'secret "openai-key"))))
+
+;; Gptel
+(use-package gptel)
+(gptel-make-anthropic "Claude" :stream t :key gptel-api-key)
+(gptel-make-deepseek "DeepSeek"       ;Any name you want
+  :stream t                           ;for streaming responses
+  :key "your-api-key")               ;can be a function that returns the key
+
+
+;; OPTIONAL configuration
+(setq
+ gptel-model 'llama4:latest
+ gptel-backend (gptel-make-ollama "Ollama"
+                 :host "localhost:11434"
+                 :stream t
+                 :models '(llama4:latest)))
+
+  (gptel-make-gh-copilot "Copilot")
+  
+(use-package agent-shell
+    :ensure t
+    :ensure-system-package
+    ((claude . "npm install -g @anthropic-ai/claude-code")
+     (claude-agent-acp . "npm install -g @zed-industries/claude-agent-acp")))
+
+
+;; ============================================================================
+;; TERMINAL AND SHELL
+;; ============================================================================
+
+(use-package vterm
+  :config
+  (setq vterm-shell "/bin/zsh"))
+
+(use-package multi-vterm
+  :config
+  (add-hook 'vterm-mode-hook
+            (lambda ()
+              (setq-local evil-insert-state-cursor 'box)
+              (evil-insert-state)))
+  :bind
+  (("C-c v" . multi-vterm-dedicated-toggle)))
+
+;; ============================================================================
+;; FLYCHECK AND ERROR CHECKING
+;; ============================================================================
+
+(use-package flycheck
+  :init (global-flycheck-mode)
+  :config
+  (setq flycheck-python-flake8-executable "flake8"
+        flycheck-python-pylint-executable "pylint"
+        flycheck-python-mypy-executable "mypy"))
+
+;; ============================================================================
+;; LISPY - ENHANCED LISP EDITING
+;; ============================================================================
+
+(use-package lispy
+  :ensure t
+  :defer t
+  :hook ((emacs-lisp-mode . lispy-mode)
+         (lisp-interaction-mode . lispy-mode)
+         (lisp-mode . lispy-mode)
+         (scheme-mode . lispy-mode))
+  :config
+  ;; Basic settings
+  (setq lispy-compat '(edebug cider)
+        lispy-close-quotes-at-end-p t
+        lispy-eval-display-style 'overlay
+        lispy-no-space nil)
+  
+  (message "✅ Lispy mode loaded"))
+
+;; ============================================================================
+;; HELPFUL PACKAGES
+;; ============================================================================
+
+(use-package helpful
+  :bind
+  ([remap describe-function] . helpful-function)
+  ([remap describe-symbol] . helpful-symbol)
+  ([remap describe-variable] . helpful-variable)
+  ([remap describe-command] . helpful-command)
+  ([remap describe-key] . helpful-key))
+
+(use-package expand-region
+  :bind ("C-=" . er/expand-region))
+
+(use-package multiple-cursors
+  :bind (("C->" . mc/mark-next-like-this)
+         ("C-<" . mc/mark-previous-like-this)
+         ("C-c C-<" . mc/mark-all-like-this)))
+
+;; ============================================================================
+;; BROWSER INTEGRATION
+;; ============================================================================
+
+;; Load browser configuration (optional)
+(condition-case nil
+    (require 'browser-config)
+  (error (message "Browser config not loaded - some features may be unavailable")))
+
+
+;; Load comprehensive Org mode configuration
+(condition-case nil
+    (progn
+      (require 'org-config)
+      (message "✅ Org mode configuration loaded successfully"))
+  (error (message "❌ Failed to load org-config - some Org features may be unavailable")))
+
+;; Load yt-dlp integration
+(condition-case nil
+    (progn
+      (require 'yt-dlp-config)
+      (yt-dlp-setup)
+      (message "✅ yt-dlp integration loaded successfully"))
+  (error (message "❌ Failed to load yt-dlp-config - media download features may be unavailable")))
+
+;; Load lambda symbol configuration for Lisp programming
+(condition-case err
+    (progn
+      (require 'lambda-symbol-config-simple)
+      (message "✅ Lambda symbol configuration loaded - Use C-c L h for help"))
+  (error (message "❌ Failed to load lambda-symbol-config: %s" err)))
+
+;; Load enhanced Lispy configuration (only if lispy is installed)
+(with-eval-after-load 'lispy
+  (condition-case err
+      (progn
+        (require 'lispy-enhanced-config)
+        (message "✅ Lispy enhanced configuration loaded - Use C-c l h for help"))
+    (error (message "❌ Failed to load lispy-enhanced-config: %s" err))))
+
+;; ============================================================================
+;; SCRATCH BUFFER ENHANCEMENTS
+;; ============================================================================
+
+;; Enhance scratch buffer with better default content and completion
+(defun enhanced-scratch-buffer ()
+  "Create or switch to an enhanced scratch buffer with helpful content."
+  (interactive)
+  (let ((scratch-buffer (get-buffer-create "*scratch*")))
+    (with-current-buffer scratch-buffer
+      (lisp-interaction-mode)
+      (when (zerop (buffer-size))
+        (insert ";; Welcome to the Enhanced Emacs Scratch Buffer!
+;; This buffer is for Emacs Lisp evaluation and experimentation.
+;; 
+;; Useful keybindings:
+;; C-x C-e  : Evaluate expression before point
+;; C-j      : Evaluate expression and insert result
+;; M-TAB    : Complete symbol at point
+;; TAB      : Company completion (if available)
+;;
+;; Try some examples:
+;; (+ 2 3)
+;; (current-time-string)
+;; (buffer-list)
+;; (apropos \"company\")
+
+"))
+      (company-mode 1)
+      (goto-char (point-max)))
+    (switch-to-buffer scratch-buffer)))
+
+;; Add keybinding for enhanced scratch buffer
+(global-set-key (kbd "C-c s") 'enhanced-scratch-buffer)
+
+;; Make scratch buffer persistent
+(defun save-scratch-buffer ()
+  "Save the scratch buffer content to a file."
+  (interactive)
+  (with-current-buffer "*scratch*"
+    (write-file (expand-file-name "scratch-backup.el" user-emacs-directory))
+    (rename-buffer "*scratch*" t)
+    (lisp-interaction-mode)
+    (message "Scratch buffer saved to ~/.emacs.d/scratch-backup.el")))
+
+(global-set-key (kbd "C-c S") 'save-scratch-buffer)
+
+;; Auto-load scratch backup on startup if it exists
+(defun load-scratch-backup ()
+  "Load scratch buffer backup if it exists."
+  (let ((scratch-file (expand-file-name "scratch-backup.el" user-emacs-directory)))
+    (when (file-exists-p scratch-file)
+      (with-current-buffer (get-buffer-create "*scratch*")
+        (insert-file-contents scratch-file)
+        (lisp-interaction-mode)
+        (company-mode 1)))))
+
+(add-hook 'emacs-startup-hook 'load-scratch-backup)
+
+;; ============================================================================
+;; CUSTOM FUNCTIONS FOR AI DEVELOPMENT
+;; ============================================================================
+
+(defun ai-run-chatbot ()
+  "Run the AI chatbot example."
+  (interactive)
+  (let ((default-directory "/home/ebrimasaye/Development/AI/"))
+    (async-shell-command "source ai-venv/bin/activate && python examples/llm/first_chatbot.py")))
+
+(defun ai-run-object-detection ()
+  "Run the object detection demo."
+  (interactive)
+  (let ((default-directory "/home/ebrimasaye/Development/AI/"))
+    (async-shell-command "source ai-venv/bin/activate && python examples/vision/object_detection.py --demo")))
+
+(defun ai-run-speech-recognition ()
+  "Run the speech recognition demo."
+  (interactive)
+  (let ((default-directory "/home/ebrimasaye/Development/AI/"))
+    (async-shell-command "source ai-venv/bin/activate && python examples/audio/speech_to_text.py --demo")))
+
+(defun ai-start-jupyter ()
+  "Start Jupyter Lab server."
+  (interactive)
+  (let ((default-directory "/home/ebrimasaye/Development/AI/"))
+    (async-shell-command "source ai-venv/bin/activate && jupyter lab --no-browser")))
+
+(defun ai-start-ollama ()
+  "Start Ollama service."
+  (interactive)
+  (async-shell-command "ollama serve"))
+
+(defun ai-activate-env ()
+  "Activate the AI virtual environment."
+  (interactive)
+  (pyvenv-activate "/home/ebrimasaye/Development/AI/ai-venv")
+  (message "AI environment activated"))
+
+;; ============================================================================
+;; KEY BINDINGS
+;; ============================================================================
+
+;; AI Development Keybindings (using C-c A prefix to avoid org-agenda conflict)
+(global-set-key (kbd "C-c A c") 'ai-run-chatbot)
+(global-set-key (kbd "C-c A v") 'ai-run-object-detection)
+(global-set-key (kbd "C-c A s") 'ai-run-speech-recognition)
+(global-set-key (kbd "C-c A j") 'ai-start-jupyter)
+(global-set-key (kbd "C-c A o") 'ai-start-ollama)
+(global-set-key (kbd "C-c A e") 'ai-activate-env)
+
+;; Enhanced Buffer Navigation Keybindings
+(global-set-key (kbd "M-o") 'ivy-switch-buffer)         ; Quick buffer switch
+(global-set-key (kbd "C-x C-r") 'counsel-recentf)       ; Recent files
+(global-set-key (kbd "C-c B k") 'kill-current-buffer)   ; Kill current buffer
+(global-set-key (kbd "C-c B n") 'next-buffer)          ; Next buffer
+(global-set-key (kbd "C-c B p") 'previous-buffer)      ; Previous buffer
+(global-set-key (kbd "C-c B s") 'save-buffer)          ; Save buffer
+
+;; ============================================================================
+;; CUSTOM VARIABLES
+;; ============================================================================
+
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(bongo-enabled-backends '(mpg123 vlc mpv ogg123 timidity afplay))
+ '(custom-safe-themes
+   '("4594d6b9753691142f02e67b8eb0fda7d12f6cc9f1299a49b819312d6addad1d" "3613617b9953c22fe46ef2b593a2e5bc79ef3cc88770602e7e569bbd71de113b" "8d3ef5ff6273f2a552152c7febc40eabca26bae05bd12bc85062e2dc224cde9a" "6963de2ec3f8313bb95505f96bf0cf2025e7b07cefdb93e3d2e348720d401425" "9b9d7a851a8e26f294e778e02c8df25c8a3b15170e6f9fd6965ac5f2544ef2a9" "720838034f1dd3b3da66f6bd4d053ee67c93a747b219d1c546c41c4e425daf93" "fffef514346b2a43900e1c7ea2bc7d84cbdd4aa66c1b51946aade4b8d343b55a" "aec7b55f2a13307a55517fdf08438863d694550565dee23181d2ebd973ebd6b8" "7de64ff2bb2f94d7679a7e9019e23c3bf1a6a04ba54341c36e7cf2d2e56e2bcc" default))
+ '(life-calendar-birthday "1967-09-09")
+ '(package-selected-packages
+   '(zone-nyan nyan-mode web-beautify web-search ejson-mode org-make-toc toc-org textile-mode markdown-table-wrap latex-extra visual-fill smart-mode-line-powerline-theme smartparens flycheck-hl-todo hl-block-mode hl-indent hl-indent-scope hl-printf hl-prog-extra hl-sentence hl-todo helm-lsp helm-org-ql helm-ls-git helm-selected helm-searcher helm-switch-shell helm-switch-to-repl helm-systemd helm-tail helm-taskswitch helm-project helm-xref helm-projectile helm-tramp helm-sql-connect helm-tree-sitter org-projectile-helm helm-system-packages helm-css-scss flx firestarter eyebrowse column-enforce-mode calfw ace-jump-mode xml-format macrostep-geiser form-feed cl-libify buttercup dotenv-mode org-dotemacs gtk-pomodoro-indicator pomodoro org-dropbox dropbox org-treescope flycheck-guile guix consult-yasnippet helm-c-yasnippet ivy-yasnippet js-react-redux-yasnippets yasnippet-capf awk-yasnippets auto-yasnippet yasnippet-classic-snippets edit-server-htmlize orgmdb org2blog org2jekyll babel-repl helm-lib-babel babel flymake-ruff lazy-ruff ruff-format svelte-mode streamlink emms-mark-ext emms-info-mediainfo emms-mode-line-cycle emms-state ivy-emms helm-emms org-contacts org-context org-edit-latex auctex-cont-latexmk auctex-label-numbers auctex-latexmk auto-complete-auctex company-auctex auctex docker-api docker-cli docker-compose-mode slime-docker docker docker-tramp djvu json-mode company-org-block org-beautify-theme org-bullets org-bookmarks-extractor org-bookmark-heading org-bookmarks org-books ivy-hydra symbol-navigation-hydra hyperbole org-cite-overlay-sidecar citar-org-node citar-org-roam denote-citar-sections citar dired-git-info ekg-denote denote-review denote-markdown denote-explore denote-sequence denote-menu denote-search denote-agenda denote-journal-capture denote-project-notes denote-regexp denote-sections consult-denote denote-org denote emms-player-simple-mpv org-emms org-mcp anzu atomic-chrome auto-dictionary bar-cursor bash-completion bind-map bm bui circe consult dap-mode debian-el dired-quick-sort dired-rsync dockerfile-mode dpkg-dev-el elscreen embark eproject format-all git-auto-commit-mode git-timemachine golden-ratio goto-chg highlight-indentation ibuffer-projectile ibuffer-vc ido-completing-read+ imenu-list js2-mode loop lsp-java lsp-treemacs marginalia markdown-toc memoize notmuch openwith org org-caldav org-drill org-tree-slide orgalist package-lint-flymake page-break-lines parent-mode persist perspective pfuture pg pip-requirements restart-emacs treemacs vertico virtualenvwrapper wc-mode wgrep-helm world-time-mode zenburn-theme 0blayout 0x0 ac-sly agent-shell ai-code aio all-the-icons apache-mode beframe blacken bongo browser-hist calendar-norway chess cider-decompile cider-eval-sexp-fu cider-hydra claude-code claude-shell clojure-mode-extra-font-locking clojure-quick-repls clojure-snippets clojure-ts-mode company company-jedi company-math company-quickhelp-terminal company-restclient company-shell company-spell company-suggest company-web copilot counsel-projectile curl-to-elisp dashboard-hackernews devdocs-browser diminish dired-ranger discover-my-major django-commands django-manage django-mode django-snippets djangonaut doom-modeline doom-themes editorconfig-custom-majormode eglot-python-preset ein elfeed-webkit elisp-autofmt elisp-benchmarks elisp-def elisp-depend elisp-depmap elisp-dev-mcp elisp-docstring-mode elisp-format elisp-lint elisp-sandbox elisp-slime-nav emmet-mode erc-youtube eselect-news eshell-atuin eshell-autojump eshell-bookmark eshell-command-not-found eshell-did-you-mean eshell-fixed-prompt eshell-fringe-status eshell-git-prompt eshell-info-banner eshell-outline eshell-prompt-extras eshell-syntax-highlighting eshell-toggle eshell-up eshell-vterm eshell-z evalator-clojure exec-path-from-shell expand-region exwm-firefox-core exwm-x f90-interface-browser flycheck-clojure flycheck-julia flymake-elisp-config flymake-php flymake-python-pyflakes flymake-shell friendly-shell friendly-shell-command futur fzf geiser-chicken geiser-guile geiser-mit git-gutter github-browse-file github-clone github-elpa github-search gnu-elpa gnuplot gnuplot-mode gptel-agent gptel-commit gptel-magit hackernews-modern helm-cider helm-cider-history helm-company helm-eww helm-exwm helm-open-github helm-rhythmbox helm-sly helm-smex helm-youtube help-find-org-mode helpful holy-books importmagic inheritenv ipython-shell-send ivy-mpdel ivy-youtube jedi jedi-direx julia-formatter julia-repl julia-shell julia-snail julia-ts-mode jupyter langtool language-detection language-id languagetool lex lichess life-calendar lisp-chat lispy literate-elisp llm lsp-ivy lsp-jedi lsp-julia lsp-pyre lsp-pyright lsp-python-ms lsp-scheme lsp-ui macrostep major-mode-hydra major-mode-icons mcp mingus mixed-pitch multi-vterm multiple-cursors multishell mysql-to-org netease-music newspeak-mode ob-browser ob-chatgpt-shell ob-clojurescript ob-ess-julia ob-ipython ob-julia-vterm ob-llm org-babel-eval-in-repl org-elisp-help org-fancy-priorities org-inline-pdf org-modern org-movies org-noter-pdftools org-pomodoro org-present-remote org-preview-html org-projectile org-roam-ql-ql org-roam-ui org-sql org-starter-swiper org-superstar org-sync org-tag-beautify org-view-mode org-web-tools org2web orgnav ox-hugo ox-reveal paredit-everywhere php-quickhelp php-scratch plain-org-wiki pulsar py-isort python-black python-cell python-coverage python-django python-docstring python-environment python-insert-docstring python-isort python-mls python-mode python-pytest python-switch-quotes python-tdd-mode python-test python-view-data python-x pythontest pyvenv-auto quelpa-use-package quick-shell-keybind qwen-chat-shell rainbow-delimiters readline-complete ros scheme-complete shackle shell-command-x shell-current-directory shell-here shell-history shell-switcher shell-toggle shellcop shelltest-mode simple-mpc slime-company slime-repl-ansi-color sly-asdf sly-hello-world sly-macrostep sly-named-readtables sly-overlay sly-quicklisp sly-repl-ansi-color sql-indent sqlformat sqlup-mode substitute tmr treepy treesit-auto treesit-ispell ubuntu-theme use-package-chords use-package-hydra use-package-treesit vlc volume w32-browser web-mode web-server webkit-color-picker websearch wgrep which-key-posframe widget-mvc window-commander with-emacs xwidgete xwidgets-reuse xwwp xwwp-follow-link-helm xwwp-follow-link-ivy yaml-mode yasnippet-snippets youtube-sub-extractor zzz-to-char))
+ '(send-mail-function 'mailclient-send-it)
+ '(smtpmail-smtp-server "smtp.gmail.com")
+ '(smtpmail-smtp-service 25)
+ '(warning-suppress-log-types '((native-compiler) (gptel) (emacs) ((tar link)) (comp)))
+ '(warning-suppress-types
+   '((native-compiler)
+     (native-compiler)
+     (native-compiler)
+     (tramp)
+     (emacs))))
+
+;; ============================================================================
+;; STARTUP ACTIONS
+;; ============================================================================
+
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (message "🤖 AI Development Environment ready!")
+            (message "📚 Scratch buffer autocompletion enabled - Press C-c s for enhanced scratch buffer")
+            (message "📖 Documentation: ~/.emacs.d/SCRATCH_BUFFER_AUTOCOMPLETION.md")
+            (when (file-exists-p "/home/ebrimasaye/Development/AI/")
+              (find-file "/home/ebrimasaye/Development/AI/README.md"))))
+
+;;; init.el ends here
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
+
+;; ============================================================================
+;; MOJO PROGRAMMING LANGUAGE SUPPORT
+;; ============================================================================
+
+;; Load Mojo development configuration
+(condition-case err
+    (progn
+      (require 'mojo-config)
+      (message "✅ Mojo development configuration loaded successfully"))
+  (error (message "❌ Failed to load Mojo configuration: %s" err)))
+
+;; ============================================================================
+;; SQL AND DATABASE SUPPORT
+;; ============================================================================
+
+;; Load SQL and database configuration with DBeaver integration
+(condition-case err
+    (progn
+      (require 'sql-config)
+      (message "✅ SQL configuration loaded - Use M-x sql-config-help for keybindings"))
+  (error (message "❌ Failed to load SQL configuration: %s" err)))
+
+;; ============================================================================
+;; LAMP STACK DEVELOPMENT
+;; ============================================================================
+
+;; Load LAMP development configuration (PHP, Apache, MySQL workflow)
+(condition-case err
+    (progn
+      (require 'lamp-config)
+      (message "✅ LAMP configuration loaded - Use C-c w h for keybindings"))
+  (error (message "❌ Failed to load LAMP configuration: %s" err)))
+
+
+
+(use-package xwwp-follow-link
+  :load-path "~/.emacs.d/xwwp-follow-link"
+  :custom
+  (xwwp-follow-link-completion-system 'ivy)
+  :bind (:map xwidget-webkit-mode-map
+              ("v" . xwwp-follow-link)))
+
+
+(with-eval-after-load 'org (global-org-modern-mode))
+
+
+;; EMMS (Emacs Multimedia System) — required by org-music
+(use-package emms
+  :config
+  (emms-all)
+  (emms-default-players)
+  (setq emms-player-list '(emms-player-mpv emms-player-vlc)))
+
+;; Org-Music Mode
+(use-package org-music
+  :quelpa (org-music :fetcher github :repo "debanjum/org-music")
+  :after (org emms)
+  :init (progn
+          (setq
+           org-music-file "~/Notes/Music.org"
+           org-music-media-directory "~/Music/OrgMusic/"
+           org-music-operating-system "linux")
+          (add-hook
+           'org-mode-hook
+           (lambda()
+             (if (equal buffer-file-name (expand-file-name org-music-file))
+                 (org-music-mode))))))
+
+
+(use-package citar
+  :custom
+  (citar-bibliography '("~/bib/references.bib"))
+  :hook
+  (LaTeX-mode . citar-capf-setup)
+  (org-mode . citar-capf-setup))
+
+  
+;; Set path to the reading list org file
+(setq org-books-file "~/my-list.org")
+
+;; A basic template file can be generated using the function `org-books-create-file'.
+
+(setq org-capture-templates
+      '(("b" "Book" entry (file "some-file.org")
+         "* %^{TITLE}\n:PROPERTIES:\n:ADDED: %<[%Y-%02m-%02d]>\n:END:%^{AUTHOR}p\n%?" :empty-lines 1)))
+
+         (setq org-capture-templates
+               '(("b" "Book" entry (file "some-file.org")
+                  "%(let* ((url (substring-no-properties (current-kill 0)))
+                           (details (org-books-get-details url)))
+                      (when details (apply #'org-books-format 1 details)))")))
+
+                      (setq org-capture-templates
+                            '(("b" "Book log" item (function org-books-visit-book-log)
+                                 "- %U %?" :prepend t)))
+
+
+
+
+;; Enable AUCTeX features
+(setq TeX-auto-save t)
+(setq TeX-parse-self t)
+(setq-default TeX-master nil)
+(setq TeX-PDF-mode t)
+
+;; Add hooks for syntax, spell-checking, and references
+(add-hook 'LaTeX-mode-hook 'visual-line-mode)
+(add-hook 'LaTeX-mode-hook 'flyspell-mode)
+(add-hook 'LaTeX-mode-hook 'LaTeX-math-mode)
+(add-hook 'LaTeX-mode-hook 'TeX-source-correlate-mode)
+(add-hook 'LaTeX-mode-hook 'turn-on-reftex)
+(setq reftex-plug-into-AUCTeX t)
+
+;; Configure PDF viewer (e.g., Evince)
+(setq TeX-output-view-style
+      '(("^pdf$" "." "evince -f %o")))   
+
+;;CHESS
+(require 'chess-game)
+(require 'chess-display)
+(require 'chess-engine)
+
+;; Ensure /usr/games is in exec-path (graphical Emacs may lack it before
+;; exec-path-from-shell runs; chess-stockfish-path defcustom evaluates early).
+(add-to-list 'exec-path "/usr/games")
+
+(defgroup chess nil
+  "An Emacs chess playing program."
+  :group 'games)
+
+(defconst chess-version "2.0.0"
+  "The version of the Emacs chess program.")
+
+(defcustom chess-default-display
+  '(chess-images chess-ics1 chess-plain)
+  "Default display to be used when starting a chess session.
+A list indicates a series of alternatives if the first display is
+not available."
+  :type '(choice symbol (repeat symbol))
+  :group 'chess)
+
+(defcustom chess-default-modules
+  '((chess-sound chess-announce)
+    chess-autosave
+    chess-clock
+    ;;chess-kibitz   jww (2002-04-30): not fully supported yet
+    ;;chess-chat
+    )
+  "Modules to be used when starting a chess session.
+A sublist indicates a series of alternatives, if the first is not
+available.
+These can do just about anything."
+  :type '(repeat (choice symbol (repeat symbol)))
+  :group 'chess)
+
+(defcustom chess-default-engine
+  '(chess-stockfish
+    chess-crafty chess-glaurung chess-fruit
+    chess-gnuchess chess-phalanx
+    chess-ai)
+  "Default engine to be used when starting a chess session.
+A list indicates a series of alternatives if the first engine is not
+available."
+  :type '(choice symbol (repeat symbol))
+  :group 'chess)
+
+(defcustom chess-full-name (user-full-name)
+  "The full name to use when playing chess."
+  :type 'string
+  :group 'chess)
+
+(and (fboundp 'font-lock-add-keywords)
+     (font-lock-add-keywords
+      'emacs-lisp-mode
+      '(("(\\(chess-error\\)\\>"	       1 font-lock-warning-face)
+	("(\\(chess-with-current-buffer\\)\\>" 1 font-lock-keyword-face))))
+
+(defun chess--create-display (module game my-color disable-popup)
+  (let ((display (chess-display-create game module my-color)))
+    (when display
+      (chess-game-set-data game 'my-color my-color)
+      (if disable-popup
+	  (chess-display-disable-popup display))
+      display)))
+
+(defun chess--create-engine (module game response-handler ctor-args)
+  (let ((engine (apply 'chess-engine-create module game
+		       response-handler ctor-args)))
+    (when engine
+      ;; for the sake of engines which are ready to play now, and
+      ;; which don't need connect/accept negotiation (most
+      ;; computerized engines fall into this category), we need to
+      ;; let them know we're ready to begin
+      (chess-engine-command engine 'ready)
+      engine)))
+
+(defun chess-create-modules (module-list create-func &rest args)
+  "Create modules from MODULE-LIST with CREATE-FUNC and ARGS.
+If an element of MODULE-LIST is a sublist, treat it as alternatives."
+  (let (objects)
+    (dolist (module module-list)
+      (let (object)
+	(if (symbolp module)
+	    (if (setq object (apply create-func module args))
+		(push object objects))
+	  ;; this module is actually a list, which means keep trying
+	  ;; until we find one that works
+	  (while module
+	    (if (setq object (condition-case nil
+				 (apply create-func (car module) args)
+			       (error nil)))
+		(progn
+		  (push object objects)
+		  (setq module nil))
+	      (setq module (cdr module)))))))
+    (nreverse objects)))
+
+(chess-message-catalog 'english
+		       '((no-engines-found
+			  . "Could not find any chess engines to play against; install gnuchess!")))
+
+;;;###autoload
+(defun chess (&optional engine disable-popup engine-response-handler
+			&rest engine-ctor-args)
+  "Start a game of chess, playing against ENGINE (a module name).
+With prefix argument, prompt for the engine to play against.
+Otherwise use `chess-default-engine' to determine the engine."
+  (interactive
+   (list
+    (if current-prefix-arg
+	(intern
+	 (concat "chess-"
+		 (let ((str (read-string "Engine to play against: ")))
+		   (if (> (length str) 0)
+		       str
+		     "none"))))
+      chess-default-engine)))
+
+  (let ((game (chess-game-create))
+	(my-color t)			; we start out as white always
+	objects)
+
+    ;; all these odd calls are so that `objects' ends up looking like:
+    ;;   (ENGINE FIRST-DISPLAY...)
+
+    (setq objects (chess-create-modules (list chess-default-display)
+					'chess--create-display
+					game my-color disable-popup))
+    (when (car objects)
+      (mapc 'chess-display-update objects)
+      (chess-module-set-leader (car objects))
+      (unless disable-popup
+	(chess-display-popup (car objects))))
+
+    (nconc objects (chess-create-modules chess-default-modules
+					 'chess-module-create game))
+
+    (push (unless (eq engine 'none)
+	    (car ;(condition-case nil
+	     (chess-create-modules (list (or engine chess-default-engine))
+				   'chess--create-engine game
+				   engine-response-handler
+				   engine-ctor-args)
+					;  (error nil))
+	     ))
+	  objects)
+
+    (unless (car objects)
+      (chess-message 'no-engines-found))
+
+    objects))
+
+;;;###autoload
+(defalias 'chess-session 'chess)
+
+;;;###autoload
+(defun chess-create-display (perspective &optional modules-too)
+  "Create a display, letting the user's customization decide the style.
+If MODULES-TOO is non-nil, also create and associate the modules
+listed in `chess-default-modules'."
+  (if modules-too
+      (let ((display (cadr (chess-session 'none))))
+	(chess-display-set-perspective* display perspective))
+    (car (chess-create-modules (list chess-default-display)
+			       'chess--create-display
+			       (chess-game-create) perspective nil))))
+
+(provide 'chess)
+
+;; Force Stockfish as the preferred engine and pin its path.
+;; (The inline defcustom above won't override the ELPA chess.el value
+;; that loaded first via the require chain, so we need setq here.)
+(setq chess-stockfish-path "/usr/games/stockfish")
+(setq chess-default-engine
+      '(chess-stockfish
+        chess-crafty chess-glaurung chess-fruit
+        chess-gnuchess chess-phalanx
+        chess-ai))
+
+;; Look up ICS credentials from ~/.authinfo.gpg (no plaintext passwords in init)
+(require 'auth-source)
+
+(defun chess-ics-cred (host port)
+  "Retrieve ICS login/password for HOST:PORT from auth-source."
+  (let* ((found (car (auth-source-search :host host :port (number-to-string port) :max 1)))
+         (user  (when found (plist-get found :user)))
+         (pass  (when found (let ((s (plist-get found :secret)))
+                              (if (functionp s) (funcall s) s)))))
+    (when (and user pass) (list host port user pass))))
+
+(setq chess-ics-server-list
+      (delq nil (list (chess-ics-cred "freechess.org" 5000)
+                      (chess-ics-cred "chessclub.com" 5000))))
+
+;; PGN mode for chess game notation files
+(require 'pygn-mode)
+
+
+(require 'posframe)
+
+;;; init.el ends here
+
