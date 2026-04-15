@@ -80,10 +80,6 @@
 (add-to-list 'load-path "~/.emacs.d/lisp/emacs-claude-code")
 (require 'emacs-claude-code)
 
-;; Load auto-tangle module for init.org
-;; This ensures that saving init.org automatically regenerates init.el
-(require 'auto-tangle-init)
-
 ;; TMR (manual package — :ensure nil since it's not from MELPA)
 (add-to-list 'load-path "~/.emacs.d/manual-packages/tmr")
 (use-package tmr
@@ -127,10 +123,10 @@
       ;; don't produce a duplicate flag (last one wins in Chromium, which would
       ;; silently drop IsolateOrigins and site-per-process).
       (defun my/eaf-disable-geolocation (orig-fun)
-        \"Append ,Geolocation to the existing --disable-features flag in QTWEBENGINE_CHROMIUM_FLAGS.\"
+        "Append ,Geolocation to the existing --disable-features flag in QTWEBENGINE_CHROMIUM_FLAGS."
         (mapcar (lambda (var)
-                  (if (string-match \"\\\\(QTWEBENGINE_CHROMIUM_FLAGS=.*--disable-features=[^ ]*\\\\)\" var)
-                      (concat var \",Geolocation\")
+                  (if (string-match "\\(QTWEBENGINE_CHROMIUM_FLAGS=.*--disable-features=[^ ]*\\)" var)
+                      (concat var ",Geolocation")
                     var))
                 (funcall orig-fun)))
       (advice-add 'eaf--build-process-environment :around #'my/eaf-disable-geolocation)
@@ -169,8 +165,8 @@
 
       (require 'eaf-config)
 
-      (message \"✅ EAF loaded successfully\"))
-  (error (message \"❌ EAF failed to load: %s\" err)))
+      (message "[OK] EAF loaded successfully"))
+  (error (message "[ERROR] EAF failed to load: %s" err)))
 
 ;; ============================================================================
 ;; XWIDGETS (WebKitGTK embedded browser)
@@ -182,22 +178,22 @@
   (setq browse-url-browser-function #'xwidget-webkit-browse-url)
 
   ;; Kill the xwidget buffer when its window is closed
-  (setq xwidget-webkit-buffer-name-format \"*xwidget: %T*\")
+  (setq xwidget-webkit-buffer-name-format "*xwidget: %T*")
 
   (with-eval-after-load 'xwidget
     ;; j/k scroll like a browser
-    (define-key xwidget-webkit-mode-map (kbd \"j\") #'xwidget-webkit-scroll-up-line)
-    (define-key xwidget-webkit-mode-map (kbd \"k\") #'xwidget-webkit-scroll-down-line)
-    (define-key xwidget-webkit-mode-map (kbd \"d\") #'xwidget-webkit-scroll-up)
-    (define-key xwidget-webkit-mode-map (kbd \"u\") #'xwidget-webkit-scroll-down)
-    (define-key xwidget-webkit-mode-map (kbd \"H\") #'xwidget-webkit-back)
-    (define-key xwidget-webkit-mode-map (kbd \"L\") #'xwidget-webkit-forward)
-    (define-key xwidget-webkit-mode-map (kbd \"r\") #'xwidget-webkit-reload)
-    (define-key xwidget-webkit-mode-map (kbd \"o\") #'xwidget-webkit-browse-url)
-    (define-key xwidget-webkit-mode-map (kbd \"y\") #'xwidget-webkit-copy-selection-as-kill))
+    (define-key xwidget-webkit-mode-map (kbd "j") #'xwidget-webkit-scroll-up-line)
+    (define-key xwidget-webkit-mode-map (kbd "k") #'xwidget-webkit-scroll-down-line)
+    (define-key xwidget-webkit-mode-map (kbd "d") #'xwidget-webkit-scroll-up)
+    (define-key xwidget-webkit-mode-map (kbd "u") #'xwidget-webkit-scroll-down)
+    (define-key xwidget-webkit-mode-map (kbd "H") #'xwidget-webkit-back)
+    (define-key xwidget-webkit-mode-map (kbd "L") #'xwidget-webkit-forward)
+    (define-key xwidget-webkit-mode-map (kbd "r") #'xwidget-webkit-reload)
+    (define-key xwidget-webkit-mode-map (kbd "o") #'xwidget-webkit-browse-url)
+    (define-key xwidget-webkit-mode-map (kbd "y") #'xwidget-webkit-copy-selection-as-kill))
 
-  (global-set-key (kbd \"C-c x\") #'xwidget-webkit-browse-url)
-  (message \"✅ xwidgets loaded\"))
+  (global-set-key (kbd "C-c x") #'xwidget-webkit-browse-url)
+  (message "[OK] xwidgets loaded"))
 
 ;; ============================================================================
 ;; BASIC CONFIGURATION
@@ -297,32 +293,32 @@
 
 (use-package ivy
   :diminish
-  :bind ((\"C-s\" . swiper)
+  :bind (("C-s" . swiper)
          :map ivy-minibuffer-map
-         (\"TAB\" . ivy-alt-done)
-         (\"C-l\" . ivy-alt-done)
-         (\"C-j\" . ivy-next-line)
-         (\"C-k\" . ivy-previous-line)
+         ("TAB" . ivy-alt-done)
+         ("C-l" . ivy-alt-done)
+         ("C-j" . ivy-next-line)
+         ("C-k" . ivy-previous-line)
          :map ivy-switch-buffer-map
-         (\"C-k\" . ivy-previous-line)
-         (\"C-l\" . ivy-done)
-         (\"C-d\" . ivy-switch-buffer-kill)
-         (\"C-S-d\" . ivy-switch-buffer-other-window)
+         ("C-k" . ivy-previous-line)
+         ("C-l" . ivy-done)
+         ("C-d" . ivy-switch-buffer-kill)
+         ("C-S-d" . ivy-switch-buffer-other-window)
          :map ivy-reverse-i-search-map
-         (\"C-k\" . ivy-previous-line)
-         (\"C-d\" . ivy-reverse-i-search-kill))
+         ("C-k" . ivy-previous-line)
+         ("C-d" . ivy-reverse-i-search-kill))
   :config
   (setq ivy-use-virtual-buffers t
-        ivy-count-format \"%d/%d \")
+        ivy-count-format "%d/%d ")
   (ivy-mode 1))
 
 (use-package counsel
-  :bind ((\"M-x\" . counsel-M-x)
-         (\"C-x b\" . ivy-switch-buffer)
-         (\"C-x C-b\" . counsel-ibuffer)
-         (\"C-x C-f\" . counsel-find-file)
+  :bind (("M-x" . counsel-M-x)
+         ("C-x b" . ivy-switch-buffer)
+         ("C-x C-b" . counsel-ibuffer)
+         ("C-x C-f" . counsel-find-file)
          :map minibuffer-local-map
-         (\"C-r\" . 'counsel-minibuffer-history))
+         ("C-r" . counsel-minibuffer-history))
   :config
   (setq ivy-initial-inputs-alist nil))
 
@@ -336,17 +332,17 @@
 (use-package smex
   :after counsel
   :config
-  (setq smex-save-file (expand-file-name \"~/.emacs.d/.smex-items\"))
+  (setq smex-save-file (expand-file-name "~/.emacs.d/.smex-items"))
   (smex-initialize))
 
 (use-package company
   :init (global-company-mode)
   :bind (:map company-active-map
-         (\"<tab>\" . company-complete-selection)
-         (\"C-n\" . company-select-next)
-         (\"C-p\" . company-select-previous))
+         ("<tab>" . company-complete-selection)
+         ("C-n" . company-select-next)
+         ("C-p" . company-select-previous))
         (:map company-mode-map
-         (\"<tab>\" . company-indent-or-complete-common))
+         ("<tab>" . company-indent-or-complete-common))
   :custom
   (company-minimum-prefix-length 1)
   (company-idle-delay 0.1)
@@ -376,7 +372,7 @@
 ;; ============================================================================
 
 (use-package magit
-  :bind (\"C-x g\" . magit-status)
+  :bind (("C-x g" . magit-status))
   :config
   (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
@@ -391,14 +387,14 @@
 
 (use-package projectile
   :diminish projectile-mode
+  :init
+  (when (file-directory-p "~/Development")
+    (setq projectile-project-search-path '("~/Development")))
+  (setq projectile-switch-project-action #'projectile-dired)
   :config (projectile-mode)
   :custom ((projectile-completion-system 'ivy))
   :bind-keymap
-  (\"C-c p\" . projectile-command-map)
-  :init
-  (when (file-directory-p \"~/Development\")
-    (setq projectile-project-search-path '(\"~/Development\")))
-  (setq projectile-switch-project-action #'projectile-dired))
+  ("C-c p" . projectile-command-map))
 
 (use-package counsel-projectile
   :config (counsel-projectile-mode))
@@ -410,7 +406,7 @@
 ;; LSP Configuration
 (use-package lsp-mode
   :init
-  (setq lsp-keymap-prefix \"C-c l\")
+  (setq lsp-keymap-prefix "C-c l")
   :hook (;; replace XXX-mode with concrete major-mode(e. g. python-mode)
          (python-mode . lsp)
          (lsp-mode . lsp-enable-which-key-integration))
@@ -442,7 +438,7 @@
   :config
   (pyvenv-mode 1)
   ;; Activate AI environment by default
-  (pyvenv-activate \"/home/ebrimasaye/Development/AI/ai-venv\"))
+  (pyvenv-activate (expand-file-name "~/Development/AI/ai-venv")))
 
 (use-package blacken
   :hook (python-mode . blacken-mode)
@@ -457,10 +453,10 @@
 
 (use-package lsp-pyright
   :ensure t
-  :custom (lsp-pyright-langserver-command \"pyright\") ;; or basedpyright
+  :custom (lsp-pyright-langserver-command "pyright")
   :hook (python-mode . (lambda ()
                           (require 'lsp-pyright)
-                          (lsp))))  ; or lsp-deferred
+                          (lsp))))
 
 ;; ============================================================================
 ;; AI/ML SPECIFIC PACKAGES
@@ -471,7 +467,7 @@
     (use-package jupyter
       :config
       (setq jupyter-eval-use-overlays t))
-  (error (message \"⚠️ Jupyter package failed to load: %s\" err)))
+  (error (message "[WARN] Jupyter package failed to load: %s" err)))
 
 (use-package ein
   :config
@@ -487,28 +483,28 @@
 
 ;; GitHub Copilot Configuration
 ;; Note: Requires Node.js 20.x or later for the language server
-(when (file-directory-p \"~/.emacs.d/copilot\")
+(when (file-directory-p "~/.emacs.d/copilot")
   (condition-case err
       (progn
-        (add-to-list 'load-path \"~/.emacs.d/copilot\")
+        (add-to-list 'load-path "~/.emacs.d/copilot")
         (require 'copilot)
         
         ;; Check Node.js version and provide helpful message
-        (let ((node-version (shell-command-to-string \"node --version 2>/dev/null\")))
-          (if (string-match \"v\\\\([0-9]+\\\\)\" node-version)
+        (let ((node-version (shell-command-to-string "node --version 2>/dev/null")))
+          (if (string-match "v\\([0-9]+\\)" node-version)
               (let ((version-number (string-to-number (match-string 1 node-version))))
                 (if (>= version-number 20)
                     (progn
                       ;; Enhanced language server configuration
-                      (setq copilot-node-executable \"node\")
+                      (setq copilot-node-executable "node")
                       
                       ;; Set the path to the language server executable
                       (setq copilot-language-server-executable 
-                            (expand-file-name \"~/.local/node_modules/@github/copilot-language-server/native/linux-x64/copilot-language-server\"))
+                            (expand-file-name "~/.local/node_modules/@github/copilot-language-server/native/linux-x64/copilot-language-server"))
                       
                       ;; Advanced language server settings
                       (setq copilot-lsp-settings
-                            '(:github-enterprise (:uri \"\")
+                            '(:github-enterprise (:uri "")
                               :completion (:maxCompletions 5
                                          :debounceMs 75
                                          :enableAutoTrigger t
@@ -534,74 +530,74 @@
                       (setq copilot-log-max 1000)  ; Keep more logs for debugging
                       
                       ;; FIXED: Only use supported arguments (--stdio only)
-                      (setq copilot-server-args '(\"--stdio\"))
+                      (setq copilot-server-args '("--stdio"))
                       
                       ;; Enable copilot in programming modes (start disabled, enable manually)
                       ;; (add-hook 'prog-mode-hook 'copilot-mode)
                       
                       ;; Set up keybindings
-                      (define-key copilot-completion-map (kbd \"<tab>\") 'copilot-accept-completion)
-                      (define-key copilot-completion-map (kbd \"TAB\") 'copilot-accept-completion)
-                      (define-key copilot-completion-map (kbd \"C-TAB\") 'copilot-accept-completion-by-word)
-                      (define-key copilot-completion-map (kbd \"C-<tab>\") 'copilot-accept-completion-by-word)
+                      (define-key copilot-completion-map (kbd "<tab>") 'copilot-accept-completion)
+                      (define-key copilot-completion-map (kbd "TAB") 'copilot-accept-completion)
+                      (define-key copilot-completion-map (kbd "C-TAB") 'copilot-accept-completion-by-word)
+                      (define-key copilot-completion-map (kbd "C-<tab>") 'copilot-accept-completion-by-word)
                       
                       ;; Manual activation keybinding
-                      (global-set-key (kbd \"C-c C-p\") 'copilot-mode)
+                      (global-set-key (kbd "C-c C-p") 'copilot-mode)
                       
                       ;; Optional: Set up additional keybindings
-                      (define-key copilot-mode-map (kbd \"M-C-<return>\") 'copilot-accept-completion)
-                      (define-key copilot-mode-map (kbd \"M-C-<right>\") 'copilot-accept-completion-by-word)
-                      (define-key copilot-mode-map (kbd \"M-C-<down>\") 'copilot-next-completion)
-                      (define-key copilot-mode-map (kbd \"M-C-<up>\") 'copilot-previous-completion)
+                      (define-key copilot-mode-map (kbd "M-C-<return>") 'copilot-accept-completion)
+                      (define-key copilot-mode-map (kbd "M-C-<right>") 'copilot-accept-completion-by-word)
+                      (define-key copilot-mode-map (kbd "M-C-<down>") 'copilot-next-completion)
+                      (define-key copilot-mode-map (kbd "M-C-<up>") 'copilot-previous-completion)
                       
-                      (message \"✅ GitHub Copilot available - Use C-c C-p to enable in buffer\"))
-                  (message \"⚠️ Copilot requires Node.js 20+. Current: %s. Use 'C-c C-p' to try anyway.\" node-version)))
-            (message \"⚠️ Node.js not found. Install Node.js 20+ for Copilot support.\")))
+                      (message "[OK] GitHub Copilot available - Use C-c C-p to enable in buffer"))
+                  (message "[WARN] Copilot requires Node.js 20+. Current: %s. Use 'C-c C-p' to try anyway." node-version)))
+            (message "[WARN] Node.js not found. Install Node.js 20+ for Copilot support.")))
         
         ;; Always set up the manual toggle function
         (defun copilot-toggle ()
-          \"Toggle Copilot mode in the current buffer.\"
+          "Toggle Copilot mode in the current buffer."
           (interactive)
           (if copilot-mode
               (progn
                 (copilot-mode -1)
-                (message \"Copilot disabled\"))
+                (message "Copilot disabled"))
             (progn
               (copilot-mode 1)
-              (message \"Copilot enabled\"))))
+              (message "Copilot enabled"))))
         
-        (global-set-key (kbd \"C-c C-p\") 'copilot-toggle))
-    (error (message \"❌ Copilot not available: %s\" err))))
+        (global-set-key (kbd "C-c C-p") 'copilot-toggle))
+    (error (message "[ERROR] Copilot not available: %s" err))))
 
 ;; ChatGPT integration
 (use-package chatgpt-shell
   :config
   (setq chatgpt-shell-openai-key
         (lambda ()
-          (auth-source-pass-get 'secret \"openai-key\"))))
+          (auth-source-pass-get 'secret "openai-key"))))
 
 ;; Gptel
 (use-package gptel)
-(gptel-make-anthropic \"Claude\" :stream t :key gptel-api-key)
-(gptel-make-deepseek \"DeepSeek\"       ;Any name you want
-  :stream t                           ;for streaming responses
-  :key \"your-api-key\")               ;can be a function that returns the key
+(gptel-make-anthropic "Claude" :stream t :key gptel-api-key)
+(gptel-make-deepseek "DeepSeek"
+  :stream t
+  :key "your-api-key")
 
 ;; OPTIONAL configuration
 (setq
  gptel-model 'llama4:latest
- gptel-backend (gptel-make-ollama \"Ollama\"
-                 :host \"localhost:11434\"
+ gptel-backend (gptel-make-ollama "Ollama"
+                 :host "localhost:11434"
                  :stream t
                  :models '(llama4:latest)))
 
-(gptel-make-gh-copilot \"Copilot\")
+(gptel-make-gh-copilot "Copilot")
 
 (use-package agent-shell
     :ensure t
     :ensure-system-package
-    ((claude . \"npm install -g @anthropic-ai/claude-code\")
-     (claude-agent-acp . \"npm install -g @zed-industries/claude-agent-acp\")))
+    ((claude . "npm install -g @anthropic-ai/claude-code")
+     (claude-agent-acp . "npm install -g @zed-industries/claude-agent-acp")))
 
 ;; ============================================================================
 ;; TERMINAL AND SHELL
@@ -609,7 +605,7 @@
 
 (use-package vterm
   :config
-  (setq vterm-shell \"/bin/zsh\"))
+  (setq vterm-shell "/bin/zsh"))
 
 (use-package multi-vterm
   :config
@@ -618,7 +614,7 @@
               (setq-local evil-insert-state-cursor 'box)
               (evil-insert-state)))
   :bind
-  ((\"C-c v\" . multi-vterm-dedicated-toggle)))
+  (("C-c v" . multi-vterm-dedicated-toggle)))
 
 ;; ============================================================================
 ;; FLYCHECK AND ERROR CHECKING
@@ -627,9 +623,9 @@
 (use-package flycheck
   :init (global-flycheck-mode)
   :config
-  (setq flycheck-python-flake8-executable \"flake8\"
-        flycheck-python-pylint-executable \"pylint\"
-        flycheck-python-mypy-executable \"mypy\"))
+  (setq flycheck-python-flake8-executable "flake8"
+        flycheck-python-pylint-executable "pylint"
+        flycheck-python-mypy-executable "mypy"))
 
 ;; ============================================================================
 ;; LISPY - ENHANCED LISP EDITING
@@ -649,7 +645,7 @@
         lispy-eval-display-style 'overlay
         lispy-no-space nil)
   
-  (message \"✅ Lispy mode loaded\"))
+  (message "[OK] Lispy mode loaded"))
 
 ;; ============================================================================
 ;; HELPFUL PACKAGES
@@ -664,12 +660,12 @@
   ([remap describe-key] . helpful-key))
 
 (use-package expand-region
-  :bind (\"C-=\" . er/expand-region))
+  :bind (("C-=" . er/expand-region)))
 
 (use-package multiple-cursors
-  :bind ((\"C->\" . mc/mark-next-like-this)
-         (\"C-<\" . mc/mark-previous-like-this)
-         (\"C-c C-<\" . mc/mark-all-like-this)))
+  :bind (("C->" . mc/mark-next-like-this)
+         ("C-<" . mc/mark-previous-like-this)
+         ("C-c C-<" . mc/mark-all-like-this)))
 
 ;; ============================================================================
 ;; BROWSER INTEGRATION
@@ -678,37 +674,37 @@
 ;; Load browser configuration (optional)
 (condition-case nil
     (require 'browser-config)
-  (error (message \"Browser config not loaded - some features may be unavailable\")))
+  (error (message "Browser config not loaded - some features may be unavailable")))
 
 ;; Load comprehensive Org mode configuration
 (condition-case nil
     (progn
       (require 'org-config)
-      (message \"✅ Org mode configuration loaded successfully\"))
-  (error (message \"❌ Failed to load org-config - some Org features may be unavailable\")))
+      (message "[OK] Org mode configuration loaded successfully"))
+  (error (message "[ERROR] Failed to load org-config - some Org features may be unavailable")))
 
 ;; Load yt-dlp integration
 (condition-case nil
     (progn
       (require 'yt-dlp-config)
       (yt-dlp-setup)
-      (message \"✅ yt-dlp integration loaded successfully\"))
-  (error (message \"❌ Failed to load yt-dlp-config - media download features may be unavailable\")))
+      (message "[OK] yt-dlp integration loaded successfully"))
+  (error (message "[ERROR] Failed to load yt-dlp-config - media download features may be unavailable")))
 
 ;; Load lambda symbol configuration for Lisp programming
 (condition-case err
     (progn
       (require 'lambda-symbol-config-simple)
-      (message \"✅ Lambda symbol configuration loaded - Use C-c L h for help\"))
-  (error (message \"❌ Failed to load lambda-symbol-config: %s\" err)))
+      (message "[OK] Lambda symbol configuration loaded - Use C-c L h for help"))
+  (error (message "[ERROR] Failed to load lambda-symbol-config: %s" err)))
 
 ;; Load enhanced Lispy configuration (only if lispy is installed)
 (with-eval-after-load 'lispy
   (condition-case err
       (progn
         (require 'lispy-enhanced-config)
-        (message \"✅ Lispy enhanced configuration loaded - Use C-c l h for help\"))
-    (error (message \"❌ Failed to load lispy-enhanced-config: %s\" err))))
+        (message "[OK] Lispy enhanced configuration loaded - Use C-c l h for help"))
+    (error (message "[ERROR] Failed to load lispy-enhanced-config: %s" err))))
 
 ;; ============================================================================
 ;; SCRATCH BUFFER ENHANCEMENTS
@@ -716,53 +712,38 @@
 
 ;; Enhance scratch buffer with better default content and completion
 (defun enhanced-scratch-buffer ()
-  \"Create or switch to an enhanced scratch buffer with helpful content.\"
+  "Create or switch to an enhanced scratch buffer with helpful content."
   (interactive)
-  (let ((scratch-buffer (get-buffer-create \"*scratch*\")))
+  (let ((scratch-buffer (get-buffer-create "*scratch*")))
     (with-current-buffer scratch-buffer
       (lisp-interaction-mode)
       (when (zerop (buffer-size))
-        (insert \";; Welcome to the Enhanced Emacs Scratch Buffer!
-;; This buffer is for Emacs Lisp evaluation and experimentation.
-;; 
-;; Useful keybindings:
-;; C-x C-e  : Evaluate expression before point
-;; C-j      : Evaluate expression and insert result
-;; M-TAB    : Complete symbol at point
-;; TAB      : Company completion (if available)
-;;
-;; Try some examples:
-;; (+ 2 3)
-;; (current-time-string)
-;; (buffer-list)
-;; (apropos \\\"company\\\")
-
-\"))
+        (insert ";; Welcome to the Enhanced Emacs Scratch Buffer!\n;; This buffer is for Emacs Lisp evaluation and experimentation.\n;; \n;; Useful keybindings:\n;; C-x C-e  : Evaluate expression before point\n;; C-j      : Evaluate expression and insert result\n;; M-TAB    : Complete symbol at point\n;; TAB      : Company completion (if available)\n;;\n;; Try some examples:\n;; (+ 2 3)\n;; (current-time-string)\n;; (buffer-list)\n;; (apropos \"company\")\n"))
       (company-mode 1)
       (goto-char (point-max)))
     (switch-to-buffer scratch-buffer)))
 
 ;; Add keybinding for enhanced scratch buffer
-(global-set-key (kbd \"C-c s\") 'enhanced-scratch-buffer)
+(global-set-key (kbd "C-c s") 'enhanced-scratch-buffer)
 
 ;; Make scratch buffer persistent
 (defun save-scratch-buffer ()
-  \"Save the scratch buffer content to a file.\"
+  "Save the scratch buffer content to a file."
   (interactive)
-  (with-current-buffer \"*scratch*\"
-    (write-file (expand-file-name \"scratch-backup.el\" user-emacs-directory))
-    (rename-buffer \"*scratch*\" t)
+  (with-current-buffer "*scratch*"
+    (write-file (expand-file-name "scratch-backup.el" user-emacs-directory))
+    (rename-buffer "*scratch*" t)
     (lisp-interaction-mode)
-    (message \"Scratch buffer saved to ~/.emacs.d/scratch-backup.el\")))
+    (message "Scratch buffer saved to ~/.emacs.d/scratch-backup.el")))
 
-(global-set-key (kbd \"C-c S\") 'save-scratch-buffer)
+(global-set-key (kbd "C-c S") 'save-scratch-buffer)
 
 ;; Auto-load scratch backup on startup if it exists
 (defun load-scratch-backup ()
-  \"Load scratch buffer backup if it exists.\"
-  (let ((scratch-file (expand-file-name \"scratch-backup.el\" user-emacs-directory)))
+  "Load scratch buffer backup if it exists."
+  (let ((scratch-file (expand-file-name "scratch-backup.el" user-emacs-directory)))
     (when (file-exists-p scratch-file)
-      (with-current-buffer (get-buffer-create \"*scratch*\")
+      (with-current-buffer (get-buffer-create "*scratch*")
         (insert-file-contents scratch-file)
         (lisp-interaction-mode)
         (company-mode 1)))))
@@ -774,59 +755,59 @@
 ;; ============================================================================
 
 (defun ai-run-chatbot ()
-  \"Run the AI chatbot example.\"
+  "Run the AI chatbot example."
   (interactive)
-  (let ((default-directory \"/home/ebrimasaye/Development/AI/\"))
-    (async-shell-command \"source ai-venv/bin/activate && python examples/llm/first_chatbot.py\")))
+  (let ((default-directory (expand-file-name "~/Development/AI/")))
+    (async-shell-command "source ai-venv/bin/activate && python examples/llm/first_chatbot.py")))
 
 (defun ai-run-object-detection ()
-  \"Run the object detection demo.\"
+  "Run the object detection demo."
   (interactive)
-  (let ((default-directory \"/home/ebrimasaye/Development/AI/\"))
-    (async-shell-command \"source ai-venv/bin/activate && python examples/vision/object_detection.py --demo\")))
+  (let ((default-directory (expand-file-name "~/Development/AI/")))
+    (async-shell-command "source ai-venv/bin/activate && python examples/vision/object_detection.py --demo")))
 
 (defun ai-run-speech-recognition ()
-  \"Run the speech recognition demo.\"
+  "Run the speech recognition demo."
   (interactive)
-  (let ((default-directory \"/home/ebrimasaye/Development/AI/\"))
-    (async-shell-command \"source ai-venv/bin/activate && python examples/audio/speech_to_text.py --demo\")))
+  (let ((default-directory (expand-file-name "~/Development/AI/")))
+    (async-shell-command "source ai-venv/bin/activate && python examples/audio/speech_to_text.py --demo")))
 
 (defun ai-start-jupyter ()
-  \"Start Jupyter Lab server.\"
+  "Start Jupyter Lab server."
   (interactive)
-  (let ((default-directory \"/home/ebrimasaye/Development/AI/\"))
-    (async-shell-command \"source ai-venv/bin/activate && jupyter lab --no-browser\")))
+  (let ((default-directory (expand-file-name "~/Development/AI/")))
+    (async-shell-command "source ai-venv/bin/activate && jupyter lab --no-browser")))
 
 (defun ai-start-ollama ()
-  \"Start Ollama service.\"
+  "Start Ollama service."
   (interactive)
-  (async-shell-command \"ollama serve\"))
+  (async-shell-command "ollama serve"))
 
 (defun ai-activate-env ()
-  \"Activate the AI virtual environment.\"
+  "Activate the AI virtual environment."
   (interactive)
-  (pyvenv-activate \"/home/ebrimasaye/Development/AI/ai-venv\")
-  (message \"AI environment activated\"))
+  (pyvenv-activate (expand-file-name "~/Development/AI/ai-venv"))
+  (message "AI environment activated"))
 
 ;; ============================================================================
 ;; KEY BINDINGS
 ;; ============================================================================
 
 ;; AI Development Keybindings (using C-c A prefix to avoid org-agenda conflict)
-(global-set-key (kbd \"C-c A c\") 'ai-run-chatbot)
-(global-set-key (kbd \"C-c A v\") 'ai-run-object-detection)
-(global-set-key (kbd \"C-c A s\") 'ai-run-speech-recognition)
-(global-set-key (kbd \"C-c A j\") 'ai-start-jupyter)
-(global-set-key (kbd \"C-c A o\") 'ai-start-ollama)
-(global-set-key (kbd \"C-c A e\") 'ai-activate-env)
+(global-set-key (kbd "C-c A c") 'ai-run-chatbot)
+(global-set-key (kbd "C-c A v") 'ai-run-object-detection)
+(global-set-key (kbd "C-c A s") 'ai-run-speech-recognition)
+(global-set-key (kbd "C-c A j") 'ai-start-jupyter)
+(global-set-key (kbd "C-c A o") 'ai-start-ollama)
+(global-set-key (kbd "C-c A e") 'ai-activate-env)
 
 ;; Enhanced Buffer Navigation Keybindings
-(global-set-key (kbd \"M-o\") 'ivy-switch-buffer)         ; Quick buffer switch
-(global-set-key (kbd \"C-x C-r\") 'counsel-recentf)       ; Recent files
-(global-set-key (kbd \"C-c B k\") 'kill-current-buffer)   ; Kill current buffer
-(global-set-key (kbd \"C-c B n\") 'next-buffer)          ; Next buffer
-(global-set-key (kbd \"C-c B p\") 'previous-buffer)      ; Previous buffer
-(global-set-key (kbd \"C-c B s\") 'save-buffer)          ; Save buffer
+(global-set-key (kbd "M-o") 'ivy-switch-buffer)
+(global-set-key (kbd "C-x C-r") 'counsel-recentf)
+(global-set-key (kbd "C-c B k") 'kill-current-buffer)
+(global-set-key (kbd "C-c B n") 'next-buffer)
+(global-set-key (kbd "C-c B p") 'previous-buffer)
+(global-set-key (kbd "C-c B s") 'save-buffer)
 
 ;; ============================================================================
 ;; CUSTOM VARIABLES
@@ -835,10 +816,10 @@
 (custom-set-variables
  '(bongo-enabled-backends '(mpg123 vlc mpv ogg123 timidity afplay))
  '(custom-safe-themes
-   '(\"4594d6b9753691142f02e67b8eb0fda7d12f6cc9f1299a49b819312d6addad1d\" \"3613617b9953c22fe46ef2b593a2e5bc79ef3cc88770602e7e569bbd71de113b\" \"8d3ef5ff6273f2a552152c7febc40eabca26bae05bd12bc85062e2dc224cde9a\" \"6963de2ec3f8313bb95505f96bf0cf2025e7b07cefdb93e3d2e348720d401425\" \"9b9d7a851a8e26f294e778e02c8df25c8a3b15170e6f9fd6965ac5f2544ef2a9\" \"720838034f1dd3b3da66f6bd4d053ee67c93a747b219d1c546c41c4e425daf93\" \"fffef514346b2a43900e1c7ea2bc7d84cbdd4aa66c1b51946aade4b8d343b55a\" \"aec7b55f2a13307a55517fdf08438863d694550565dee23181d2ebd973ebd6b8\" \"7de64ff2bb2f94d7679a7e9019e23c3bf1a6a04ba54341c36e7cf2d2e56e2bcc\" default))
- '(life-calendar-birthday \"1967-09-09\")
+   '("4594d6b9753691142f02e67b8eb0fda7d12f6cc9f1299a49b819312d6addad1d" "3613617b9953c22fe46ef2b593a2e5bc79ef3cc88770602e7e569bbd71de113b" "8d3ef5ff6273f2a552152c7febc40eabca26bae05bd12bc85062e2dc224cde9a" "6963de2ec3f8313bb95505f96bf0cf2025e7b07cefdb93e3d2e348720d401425" "9b9d7a851a8e26f294e778e02c8df25c8a3b15170e6f9fd6965ac5f2544ef2a9" "720838034f1dd3b3da66f6bd4d053ee67c93a747b219d1c546c41c4e425daf93" "fffef514346b2a43900e1c7ea2bc7d84cbdd4aa66c1b51946aade4b8d343b55a" "aec7b55f2a13307a55517fdf08438863d694550565dee23181d2ebd973ebd6b8" "7de64ff2bb2f94d7679a7e9019e23c3bf1a6a04ba54341c36e7cf2d2e56e2bcc" default))
+ '(life-calendar-birthday "1967-09-09")
  '(send-mail-function 'mailclient-send-it)
- '(smtpmail-smtp-server \"smtp.gmail.com\")
+ '(smtpmail-smtp-server "smtp.gmail.com")
  '(smtpmail-smtp-service 25)
  '(warning-suppress-log-types '((native-compiler) (gptel) (emacs) ((tar link)) (comp)))
  '(warning-suppress-types
@@ -858,10 +839,10 @@
 
 (add-hook 'emacs-startup-hook
           (lambda ()
-            (message \"🤖 AI Development Environment ready!\")
-            (message \"📚 Scratch buffer autocompletion enabled - Press C-c s for enhanced scratch buffer\")
-            (message \"📖 Documentation: ~/.emacs.d/SCRATCH_BUFFER_AUTOCOMPLETION.md\")
-            (when (file-exists-p \"/home/ebrimasaye/Development/AI/\")
-              (find-file \"/home/ebrimasaye/Development/AI/README.md\"))))
+            (message "[AI] Development Environment ready!")
+            (message "[INFO] Scratch buffer autocompletion enabled - Press C-c s for enhanced scratch buffer")
+            (message "[DOCS] Documentation: ~/.emacs.d/SCRATCH_BUFFER_AUTOCOMPLETION.md")
+            (when (file-exists-p (expand-file-name "~/Development/AI/"))
+              (find-file (expand-file-name "~/Development/AI/README.md")))))
 
 ;;; init.el ends here
